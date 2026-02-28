@@ -1,5 +1,6 @@
 venv/
 __pycache__/
 *.pyc
-data/raw/*
-logs/*
+logs/
+.env
+.DS_Store
