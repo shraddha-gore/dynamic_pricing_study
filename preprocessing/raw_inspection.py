@@ -16,9 +16,11 @@ from config import (
     COL_PRICE,
     COL_QUANTITY,
     DOCS_PATH,
+    INVOICE_CANCELLATION_PREFIX,
     PHASE1_REPORT_FILE,
     PROJECT_ROOT,
     RAW_DATA_FILE,
+    RAW_INSPECTION_PERCENTILES,
     RAW_DATA_PATH,
 )
 
@@ -67,17 +69,17 @@ def build_report(df: pd.DataFrame) -> str:
     cancellations = 0
     cancellation_pct = 0.0
     if COL_INVOICE in df.columns:
-        cancellation_mask = df[COL_INVOICE].astype(str).str.startswith("C", na=False)
+        cancellation_mask = df[COL_INVOICE].astype(str).str.startswith(INVOICE_CANCELLATION_PREFIX, na=False)
         cancellations = int(cancellation_mask.sum())
         cancellation_pct = (cancellations / len(df)) * 100 if len(df) else 0.0
 
     quantity_stats = (
-        df[COL_QUANTITY].describe(percentiles=[0.01, 0.05, 0.5, 0.95, 0.99]).to_frame().reset_index()
+        df[COL_QUANTITY].describe(percentiles=RAW_INSPECTION_PERCENTILES).to_frame().reset_index()
         if COL_QUANTITY in df.columns
         else pd.DataFrame(columns=["index", COL_QUANTITY])
     )
     price_stats = (
-        df[COL_PRICE].describe(percentiles=[0.01, 0.05, 0.5, 0.95, 0.99]).to_frame().reset_index()
+        df[COL_PRICE].describe(percentiles=RAW_INSPECTION_PERCENTILES).to_frame().reset_index()
         if COL_PRICE in df.columns
         else pd.DataFrame(columns=["index", COL_PRICE])
     )

@@ -2,5 +2,12 @@ venv/
 __pycache__/
 *.pyc
 logs/
+data/processed/
+results/
 .env
 .DS_Store
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+.vscode/
+.idea/

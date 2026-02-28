@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from config import EXPERIMENT_LOG_FILE, LOGS_PATH, PHASE1_LOG_FILE, PROJECT_ROOT
+from config import EXPERIMENT_LOG_FILE, LOGS_PATH, PHASE1_LOG_FILE, PHASE2_LOG_FILE, PROJECT_ROOT
 
 
 def configure_logging(phases: list[int] | None = None) -> None:
@@ -21,5 +21,10 @@ def configure_logging(phases: list[int] | None = None) -> None:
 
     if 1 in selected_phases:
         phase_handler = logging.FileHandler(logs_dir / PHASE1_LOG_FILE, mode="a")
+        phase_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+        root_logger.addHandler(phase_handler)
+
+    if 2 in selected_phases:
+        phase_handler = logging.FileHandler(logs_dir / PHASE2_LOG_FILE, mode="a")
         phase_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
         root_logger.addHandler(phase_handler)
