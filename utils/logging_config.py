@@ -7,6 +7,7 @@ from config import (
     PHASE1_LOG_FILE,
     PHASE2_LOG_FILE,
     PHASE3_LOG_FILE,
+    PHASE4_LOG_FILE,
     PROJECT_ROOT,
 )
 
@@ -51,4 +52,10 @@ def configure_logging(phases: list[int] | None = None) -> None:
         phase_handler = logging.FileHandler(logs_dir / PHASE3_LOG_FILE, mode="a")
         phase_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
         phase_handler.addFilter(LoggerPrefixFilter(("preprocessing.select_products",)))
+        root_logger.addHandler(phase_handler)
+
+    if 4 in selected_phases:
+        phase_handler = logging.FileHandler(logs_dir / PHASE4_LOG_FILE, mode="a")
+        phase_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+        phase_handler.addFilter(LoggerPrefixFilter(("preprocessing.aggregate_daily",)))
         root_logger.addHandler(phase_handler)

@@ -1,3 +1,4 @@
+from preprocessing.aggregate_daily import run_phase4
 from preprocessing.clean_data import run_phase2
 from preprocessing.raw_inspection import run_phase1
 from preprocessing.select_products import run_phase3
@@ -6,6 +7,7 @@ PHASE_MAP = {
     1: run_phase1,
     2: run_phase2,
     3: run_phase3,
+    4: run_phase4,
 }
 
 def run_phase(phase: int) -> None:
