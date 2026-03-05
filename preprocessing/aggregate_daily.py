@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-import re
 import sys
 
 import pandas as pd
@@ -17,49 +16,49 @@ from config import (
     COL_QUANTITY,
     COL_STOCK_CODE,
     DAILY_AGG_DATA_PATH,
-    DOCS_PATH,
-    PHASE3_REPORT_FILE,
     PROJECT_ROOT,
+    SELECTED_PRODUCTS_PATH,
 )
+from preprocessing.common import configured_root, ensure_required_columns
+from utils.data_contracts import validate_daily_aggregation, validate_selected_products
 
 logger = logging.getLogger(__name__)
 
-CONFIGURED_ROOT_PATH = Path(PROJECT_ROOT).resolve()
+CONFIGURED_ROOT_PATH = configured_root(PROJECT_ROOT)
 INPUT_PATH = CONFIGURED_ROOT_PATH / CLEAN_DATA_PATH
-SELECTION_DOC_PATH = CONFIGURED_ROOT_PATH / DOCS_PATH / PHASE3_REPORT_FILE
+SELECTED_PRODUCTS_INPUT_PATH = CONFIGURED_ROOT_PATH / SELECTED_PRODUCTS_PATH
 OUTPUT_PATH = CONFIGURED_ROOT_PATH / DAILY_AGG_DATA_PATH
-
-
-def _parse_selected_products(selection_text: str) -> list[str]:
-    codes: list[str] = []
-    for line in selection_text.splitlines():
-        match = re.match(r"^\s*\d+\.\s+([A-Za-z0-9]+)\s+-\s+.*$", line.strip())
-        if match:
-            codes.append(match.group(1).upper())
-    unique_codes = list(dict.fromkeys(codes))
-    return unique_codes
 
 
 def run_phase4() -> None:
     logger.info("Phase 4 daily aggregation started.")
     logger.info("Input cleaned dataset: %s", INPUT_PATH)
-    logger.info("Input selected products document: %s", SELECTION_DOC_PATH)
+    logger.info("Input selected products dataset: %s", SELECTED_PRODUCTS_INPUT_PATH)
     logger.info("Output aggregated dataset: %s", OUTPUT_PATH)
 
     if not INPUT_PATH.exists():
         raise FileNotFoundError(f"Clean dataset not found: {INPUT_PATH}")
-    if not SELECTION_DOC_PATH.exists():
-        raise FileNotFoundError(f"Product selection document not found: {SELECTION_DOC_PATH}")
+    if not SELECTED_PRODUCTS_INPUT_PATH.exists():
+        raise FileNotFoundError(f"Selected products dataset not found: {SELECTED_PRODUCTS_INPUT_PATH}")
 
-    selected_text = SELECTION_DOC_PATH.read_text(encoding="utf-8")
-    selected_codes = _parse_selected_products(selected_text)
-    if not selected_codes:
-        raise ValueError("No selected products found in product selection document.")
+    selected_products = pd.read_parquet(SELECTED_PRODUCTS_INPUT_PATH)
+    validate_selected_products(selected_products)
+    selected_codes = (
+        selected_products[COL_STOCK_CODE]
+        .astype("string")
+        .str.upper()
+        .str.strip()
+        .dropna()
+        .tolist()
+    )
+    selected_codes = list(dict.fromkeys(selected_codes))
 
     df = pd.read_parquet(INPUT_PATH)
-    missing_cols = [c for c in [COL_STOCK_CODE, COL_INVOICE_DATE, COL_QUANTITY, COL_PRICE] if c not in df.columns]
-    if missing_cols:
-        raise ValueError(f"Missing required columns for Phase 4 aggregation: {missing_cols}")
+    ensure_required_columns(
+        df,
+        [COL_STOCK_CODE, COL_INVOICE_DATE, COL_QUANTITY, COL_PRICE],
+        "Phase 4 aggregation",
+    )
 
     input_rows = len(df)
     df[COL_STOCK_CODE] = df[COL_STOCK_CODE].astype("string").str.upper().str.strip()
@@ -89,6 +88,7 @@ def run_phase4() -> None:
 
     if daily.empty:
         raise ValueError("Daily aggregation produced no rows.")
+    validate_daily_aggregation(daily)
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     daily.to_parquet(OUTPUT_PATH, index=False)

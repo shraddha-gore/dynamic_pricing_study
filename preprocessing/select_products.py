@@ -21,27 +21,32 @@ from config import (
     MIN_PRICE_STD,
     PHASE3_REPORT_FILE,
     PROJECT_ROOT,
+    SELECTED_PRODUCTS_PATH,
     SELECTED_PRODUCT_COUNT,
 )
+from preprocessing.common import configured_root, ensure_required_columns
+from utils.data_contracts import validate_selected_products
 
 logger = logging.getLogger(__name__)
 
-CONFIGURED_ROOT_PATH = Path(PROJECT_ROOT).resolve()
+CONFIGURED_ROOT_PATH = configured_root(PROJECT_ROOT)
 INPUT_PATH = CONFIGURED_ROOT_PATH / CLEAN_DATA_PATH
 REPORT_PATH = CONFIGURED_ROOT_PATH / DOCS_PATH / PHASE3_REPORT_FILE
+SELECTED_PRODUCTS_OUTPUT_PATH = CONFIGURED_ROOT_PATH / SELECTED_PRODUCTS_PATH
 
 
 def _validate_columns(df: pd.DataFrame) -> None:
-    required_columns = [
-        COL_STOCK_CODE,
-        COL_DESCRIPTION,
-        COL_INVOICE_DATE,
-        COL_PRICE,
-        COL_QUANTITY,
-    ]
-    missing = [col for col in required_columns if col not in df.columns]
-    if missing:
-        raise ValueError(f"Missing required columns for Phase 3 product selection: {missing}")
+    ensure_required_columns(
+        df,
+        [
+            COL_STOCK_CODE,
+            COL_DESCRIPTION,
+            COL_INVOICE_DATE,
+            COL_PRICE,
+            COL_QUANTITY,
+        ],
+        "Phase 3 product selection",
+    )
 
 
 def _build_description_map(df: pd.DataFrame) -> pd.Series:
@@ -89,6 +94,7 @@ def run_phase3() -> None:
     logger.info("Phase 3 product selection started.")
     logger.info("Input dataset: %s", INPUT_PATH)
     logger.info("Output report: %s", REPORT_PATH)
+    logger.info("Output selected products dataset: %s", SELECTED_PRODUCTS_OUTPUT_PATH)
 
     if not INPUT_PATH.exists():
         logger.error("Clean dataset missing at %s", INPUT_PATH)
@@ -141,18 +147,18 @@ def run_phase3() -> None:
         [COL_STOCK_CODE, COL_DESCRIPTION, "Revenue", "PriceStd", "ActiveDays"]
     ].reset_index(drop=True)
 
-    if len(selected) < SELECTED_PRODUCT_COUNT:
-        logger.warning(
-            "Selected %s products, fewer than requested count %s.",
-            len(selected),
-            SELECTED_PRODUCT_COUNT,
-        )
-    else:
-        logger.info("Selected top %s products for downstream phases.", SELECTED_PRODUCT_COUNT)
+    validate_selected_products(selected)
+    logger.info("Selected top %s products for downstream phases.", SELECTED_PRODUCT_COUNT)
 
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    SELECTED_PRODUCTS_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    selected.to_parquet(SELECTED_PRODUCTS_OUTPUT_PATH, index=False)
     REPORT_PATH.write_text(_build_report(selected), encoding="utf-8")
-    logger.info("Phase 3 product selection completed. Report saved to %s", REPORT_PATH)
+    logger.info(
+        "Phase 3 product selection completed. Saved report to %s and selected products to %s",
+        REPORT_PATH,
+        SELECTED_PRODUCTS_OUTPUT_PATH,
+    )
 
 
 if __name__ == "__main__":

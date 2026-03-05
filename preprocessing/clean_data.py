@@ -31,8 +31,10 @@ from config import (
     RAW_DATA_PATH,
     TARGET_COUNTRY,
 )
+from preprocessing.common import configured_root, ensure_required_columns
+from utils.data_contracts import validate_clean_transactions
 
-CONFIGURED_ROOT_PATH = Path(PROJECT_ROOT).resolve()
+CONFIGURED_ROOT_PATH = configured_root(PROJECT_ROOT)
 CSV_PATH = CONFIGURED_ROOT_PATH / RAW_DATA_PATH / RAW_DATA_FILE
 OUTPUT_PATH = CONFIGURED_ROOT_PATH / CLEAN_DATA_PATH
 
@@ -40,9 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_columns(df: pd.DataFrame) -> None:
-    missing = [col for col in PHASE2_REQUIRED_COLUMNS if col not in df.columns]
-    if missing:
-        raise ValueError(f"Missing required columns for Phase 2 cleaning: {missing}")
+    ensure_required_columns(df, PHASE2_REQUIRED_COLUMNS, "Phase 2 cleaning")
 
 
 def _standardize_strings(df: pd.DataFrame) -> pd.DataFrame:
@@ -214,6 +214,7 @@ def run_phase2() -> None:
     )
 
     _run_quality_checks(df)
+    validate_clean_transactions(df)
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(OUTPUT_PATH, index=False)
