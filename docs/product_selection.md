@@ -1,0 +1,7 @@
+# Product Selection
+
+1. DOT - DOTCOM POSTAGE (Revenue: GBP 161,276.74, PriceStd: 197.1421, ActiveDays: 217)
+2. 22423 - REGENCY CAKESTAND 3 TIER (Revenue: GBP 142,273.29, PriceStd: 4.5361, ActiveDays: 301)
+3. 85123A - WHITE HANGING HEART T-LIGHT HOLDER (Revenue: GBP 100,676.23, PriceStd: 1.0086, ActiveDays: 305)
+4. 47566 - PARTY BUNTING (Revenue: GBP 93,658.53, PriceStd: 2.1794, ActiveDays: 291)
+5. 85099B - JUMBO BAG RED RETROSPOT (Revenue: GBP 86,471.34, PriceStd: 0.9152, ActiveDays: 300)

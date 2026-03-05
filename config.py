@@ -14,6 +14,8 @@ LOGS_PATH = "logs/"
 PHASE1_REPORT_FILE = "raw_data_report.md"
 PHASE1_LOG_FILE = "phase1.log"
 PHASE2_LOG_FILE = "phase2.log"
+PHASE3_REPORT_FILE = "product_selection.md"
+PHASE3_LOG_FILE = "phase3.log"
 EXPERIMENT_LOG_FILE = "experiment.log"
 
 # Raw dataset schema columns
@@ -53,3 +55,8 @@ PHASE2_REQUIRED_COLUMNS = [
 PHASE2_STRING_COLUMNS = [COL_INVOICE, COL_STOCK_CODE, COL_DESCRIPTION, COL_COUNTRY]
 PHASE2_PRICE_DESCRIBE_PERCENTILES = [0.5, 0.9, 0.95, 0.99, 0.995, 0.999]
 RAW_INSPECTION_PERCENTILES = [0.01, 0.05, 0.5, 0.95, 0.99]
+
+# Phase 3 product selection constants
+MIN_ACTIVE_DAYS = 150
+SELECTED_PRODUCT_COUNT = 5
+MIN_PRICE_STD = 0.0
