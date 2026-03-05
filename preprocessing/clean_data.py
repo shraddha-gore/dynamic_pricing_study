@@ -19,6 +19,7 @@ from config import (
     COL_PRICE,
     COL_QUANTITY,
     COL_STOCK_CODE,
+    EXCLUDED_STOCK_CODES,
     INVOICE_CANCELLATION_PREFIX,
     PHASE2_PRICE_DESCRIBE_PERCENTILES,
     PHASE2_REQUIRED_COLUMNS,
@@ -88,14 +89,24 @@ def _log_price_distribution(df: pd.DataFrame) -> None:
         return
 
     summary = positive_prices.describe(percentiles=PHASE2_PRICE_DESCRIBE_PERCENTILES)
-    logger.info("Positive price distribution summary:\n%s", summary.to_string())
+    logger.info(
+        (
+            "Positive price distribution | min: %.4f, median: %.4f, p95: %.4f, "
+            "p99: %.4f, max: %.4f"
+        ),
+        float(summary.get("min", 0.0)),
+        float(summary.get("50%", 0.0)),
+        float(summary.get("95%", 0.0)),
+        float(summary.get("99%", 0.0)),
+        float(summary.get("max", 0.0)),
+    )
 
     top_prices = (
         positive_prices.sort_values(ascending=False)
         .drop_duplicates()
         .head(PRICE_OUTLIER_REVIEW_TOP_N)
     )
-    logger.info(
+    logger.debug(
         "Top %s unique positive prices (descending):\n%s",
         PRICE_OUTLIER_REVIEW_TOP_N,
         top_prices.to_string(index=False),
@@ -107,7 +118,7 @@ def _log_price_distribution(df: pd.DataFrame) -> None:
         [[COL_INVOICE, COL_STOCK_CODE, COL_DESCRIPTION, COL_QUANTITY, COL_PRICE, COL_INVOICE_DATE]]
         .head(PRICE_OUTLIER_REVIEW_TOP_N)
     )
-    logger.info(
+    logger.debug(
         "Top %s rows by positive price:\n%s",
         PRICE_OUTLIER_REVIEW_TOP_N,
         highest_rows.to_string(index=False),
@@ -123,6 +134,8 @@ def _run_quality_checks(df: pd.DataFrame) -> None:
         raise ValueError("Price quality check failed: non-positive prices remain.")
     if (df[COL_PRICE] > PRICE_OUTLIER_THRESHOLD).any():
         raise ValueError("Price quality check failed: outlier prices above threshold remain.")
+    if df[COL_STOCK_CODE].isin(EXCLUDED_STOCK_CODES).any():
+        raise ValueError("Stock code quality check failed: excluded service codes remain.")
 
     required_non_null_columns = [
         COL_INVOICE,
@@ -178,6 +191,15 @@ def run_phase2() -> None:
     removed_non_positive_price = int(non_positive_price_mask.sum())
     df = df[~non_positive_price_mask].copy()
     logger.info("Removed non-positive-price rows: %s | Remaining: %s", removed_non_positive_price, len(df))
+
+    excluded_code_mask = df[COL_STOCK_CODE].isin(EXCLUDED_STOCK_CODES)
+    removed_excluded_codes = int(excluded_code_mask.sum())
+    df = df[~excluded_code_mask].copy()
+    logger.info(
+        "Removed non-product service-code rows: %s | Remaining: %s",
+        removed_excluded_codes,
+        len(df),
+    )
 
     _log_price_distribution(df)
 

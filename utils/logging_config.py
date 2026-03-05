@@ -11,6 +11,15 @@ from config import (
 )
 
 
+class LoggerPrefixFilter(logging.Filter):
+    def __init__(self, prefixes: tuple[str, ...]) -> None:
+        super().__init__()
+        self.prefixes = prefixes
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return any(record.name.startswith(prefix) for prefix in self.prefixes)
+
+
 def configure_logging(phases: list[int] | None = None) -> None:
     project_root = Path(PROJECT_ROOT).resolve()
     logs_dir = project_root / LOGS_PATH
@@ -29,14 +38,17 @@ def configure_logging(phases: list[int] | None = None) -> None:
     if 1 in selected_phases:
         phase_handler = logging.FileHandler(logs_dir / PHASE1_LOG_FILE, mode="a")
         phase_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+        phase_handler.addFilter(LoggerPrefixFilter(("preprocessing.raw_inspection",)))
         root_logger.addHandler(phase_handler)
 
     if 2 in selected_phases:
         phase_handler = logging.FileHandler(logs_dir / PHASE2_LOG_FILE, mode="a")
         phase_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+        phase_handler.addFilter(LoggerPrefixFilter(("preprocessing.clean_data",)))
         root_logger.addHandler(phase_handler)
 
     if 3 in selected_phases:
         phase_handler = logging.FileHandler(logs_dir / PHASE3_LOG_FILE, mode="a")
         phase_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+        phase_handler.addFilter(LoggerPrefixFilter(("preprocessing.select_products",)))
         root_logger.addHandler(phase_handler)
