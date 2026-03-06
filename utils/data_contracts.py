@@ -65,3 +65,46 @@ def validate_daily_aggregation(df: pd.DataFrame) -> None:
         raise ValueError("Phase 4 daily aggregation validation failed: null stock code found.")
     if df["InvoiceDay"].isna().any():
         raise ValueError("Phase 4 daily aggregation validation failed: null InvoiceDay found.")
+
+
+def validate_phase5_features(df: pd.DataFrame, split_name: str) -> None:
+    weekday_columns = [f"Weekday_{i}" for i in range(7)]
+    month_columns = [f"Month_{i}" for i in range(1, 13)]
+    required = [
+        COL_STOCK_CODE,
+        "InvoiceDay",
+        "DailyUnits",
+        "AvgDailyPrice",
+        "DailyRevenue",
+        "Lag1Units",
+        "Lag7Units",
+        "Rolling7MeanUnits",
+    ] + weekday_columns + month_columns
+
+    ensure_required_columns(df, required, f"Phase 5 {split_name} feature dataset")
+
+    if df.empty:
+        raise ValueError(f"Phase 5 {split_name} feature validation failed: dataset is empty.")
+    if df[COL_STOCK_CODE].isna().any():
+        raise ValueError(f"Phase 5 {split_name} feature validation failed: null stock code found.")
+    if df["InvoiceDay"].isna().any():
+        raise ValueError(f"Phase 5 {split_name} feature validation failed: null InvoiceDay found.")
+    if df[["DailyUnits", "Lag1Units", "Lag7Units", "Rolling7MeanUnits"]].isna().any().any():
+        raise ValueError(
+            f"Phase 5 {split_name} feature validation failed: null demand values found."
+        )
+    if (df[["DailyUnits", "Lag1Units", "Lag7Units", "Rolling7MeanUnits"]] < 0).any().any():
+        raise ValueError(
+            f"Phase 5 {split_name} feature validation failed: negative demand values found."
+        )
+
+    weekday_sum = df[weekday_columns].sum(axis=1)
+    month_sum = df[month_columns].sum(axis=1)
+    if not (weekday_sum == 1).all():
+        raise ValueError(
+            f"Phase 5 {split_name} feature validation failed: weekday one-hot encoding invalid."
+        )
+    if not (month_sum == 1).all():
+        raise ValueError(
+            f"Phase 5 {split_name} feature validation failed: month one-hot encoding invalid."
+        )
