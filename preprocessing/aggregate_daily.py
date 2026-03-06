@@ -70,19 +70,19 @@ def run_phase4() -> None:
     filtered[COL_INVOICE_DATE] = pd.to_datetime(filtered[COL_INVOICE_DATE], errors="coerce", format="mixed")
     filtered = filtered[filtered[COL_INVOICE_DATE].notna()].copy()
     if filtered.empty:
-        raise ValueError("All filtered rows have invalid InvoiceDate values.")
+        raise ValueError("All filtered rows have invalid invoice_date values.")
 
-    filtered["InvoiceDay"] = filtered[COL_INVOICE_DATE].dt.normalize()
-    filtered["RevenueLine"] = filtered[COL_QUANTITY] * filtered[COL_PRICE]
+    filtered["invoice_day"] = filtered[COL_INVOICE_DATE].dt.normalize()
+    filtered["revenue_line"] = filtered[COL_QUANTITY] * filtered[COL_PRICE]
 
     daily = (
-        filtered.groupby([COL_STOCK_CODE, "InvoiceDay"], as_index=False)
+        filtered.groupby([COL_STOCK_CODE, "invoice_day"], as_index=False)
         .agg(
-            DailyUnits=(COL_QUANTITY, "sum"),
-            AvgDailyPrice=(COL_PRICE, "mean"),
-            DailyRevenue=("RevenueLine", "sum"),
+            daily_units=(COL_QUANTITY, "sum"),
+            avg_daily_price=(COL_PRICE, "mean"),
+            daily_revenue=("revenue_line", "sum"),
         )
-        .sort_values([COL_STOCK_CODE, "InvoiceDay"])
+        .sort_values([COL_STOCK_CODE, "invoice_day"])
         .reset_index(drop=True)
     )
 
@@ -93,8 +93,8 @@ def run_phase4() -> None:
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     daily.to_parquet(OUTPUT_PATH, index=False)
 
-    min_date = daily["InvoiceDay"].min()
-    max_date = daily["InvoiceDay"].max()
+    min_date = daily["invoice_day"].min()
+    max_date = daily["invoice_day"].max()
     logger.info(
         (
             "Phase 4 summary | input rows: %s | filtered rows: %s | output rows: %s | "

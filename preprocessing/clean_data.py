@@ -22,13 +22,14 @@ from config import (
     EXCLUDED_STOCK_CODES,
     INVOICE_CANCELLATION_PREFIX,
     PHASE2_PRICE_DESCRIBE_PERCENTILES,
-    PHASE2_REQUIRED_COLUMNS,
+    PHASE2_RAW_REQUIRED_COLUMNS,
     PHASE2_STRING_COLUMNS,
     PRICE_OUTLIER_REVIEW_TOP_N,
     PRICE_OUTLIER_THRESHOLD,
     PROJECT_ROOT,
     RAW_DATA_FILE,
     RAW_DATA_PATH,
+    RAW_TO_CANONICAL_COLUMNS,
     TARGET_COUNTRY,
 )
 from preprocessing.common import configured_root, ensure_required_columns
@@ -42,7 +43,7 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_columns(df: pd.DataFrame) -> None:
-    ensure_required_columns(df, PHASE2_REQUIRED_COLUMNS, "Phase 2 cleaning")
+    ensure_required_columns(df, PHASE2_RAW_REQUIRED_COLUMNS, "Phase 2 cleaning")
 
 
 def _standardize_strings(df: pd.DataFrame) -> pd.DataFrame:
@@ -161,8 +162,10 @@ def run_phase2() -> None:
         logger.error("Dataset missing at %s", CSV_PATH)
         raise FileNotFoundError(f"Dataset not found: {CSV_PATH}")
 
-    df = pd.read_csv(CSV_PATH)
-    _validate_columns(df)
+    raw_df = pd.read_csv(CSV_PATH)
+    _validate_columns(raw_df)
+
+    df = raw_df.rename(columns=RAW_TO_CANONICAL_COLUMNS).copy()
     df = _standardize_strings(df)
     df = _coerce_and_validate_types(df)
     logger.info("Initial row count: %s", len(df))

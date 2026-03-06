@@ -42,7 +42,7 @@ def validate_clean_transactions(df: pd.DataFrame) -> None:
 
 
 def validate_selected_products(df: pd.DataFrame) -> None:
-    required = [COL_STOCK_CODE, COL_DESCRIPTION, "Revenue", "PriceStd", "ActiveDays"]
+    required = [COL_STOCK_CODE, COL_DESCRIPTION, "revenue", "price_std", "active_days"]
     ensure_required_columns(df, required, "Phase 3 selected products dataset")
 
     if df.empty:
@@ -56,29 +56,29 @@ def validate_selected_products(df: pd.DataFrame) -> None:
 
 
 def validate_daily_aggregation(df: pd.DataFrame) -> None:
-    required = [COL_STOCK_CODE, "InvoiceDay", "DailyUnits", "AvgDailyPrice", "DailyRevenue"]
+    required = [COL_STOCK_CODE, "invoice_day", "daily_units", "avg_daily_price", "daily_revenue"]
     ensure_required_columns(df, required, "Phase 4 daily aggregation dataset")
 
     if df.empty:
         raise ValueError("Phase 4 daily aggregation validation failed: dataset is empty.")
     if df[COL_STOCK_CODE].isna().any():
         raise ValueError("Phase 4 daily aggregation validation failed: null stock code found.")
-    if df["InvoiceDay"].isna().any():
-        raise ValueError("Phase 4 daily aggregation validation failed: null InvoiceDay found.")
+    if df["invoice_day"].isna().any():
+        raise ValueError("Phase 4 daily aggregation validation failed: null invoice_day found.")
 
 
 def validate_phase5_features(df: pd.DataFrame, split_name: str) -> None:
-    weekday_columns = [f"Weekday_{i}" for i in range(7)]
-    month_columns = [f"Month_{i}" for i in range(1, 13)]
+    weekday_columns = [f"weekday_{i}" for i in range(7)]
+    month_columns = [f"month_{i}" for i in range(1, 13)]
     required = [
         COL_STOCK_CODE,
-        "InvoiceDay",
-        "DailyUnits",
-        "AvgDailyPrice",
-        "DailyRevenue",
-        "Lag1Units",
-        "Lag7Units",
-        "Rolling7MeanUnits",
+        "invoice_day",
+        "daily_units",
+        "avg_daily_price",
+        "daily_revenue",
+        "lag1_units",
+        "lag7_units",
+        "rolling7_mean_units",
     ] + weekday_columns + month_columns
 
     ensure_required_columns(df, required, f"Phase 5 {split_name} feature dataset")
@@ -87,13 +87,13 @@ def validate_phase5_features(df: pd.DataFrame, split_name: str) -> None:
         raise ValueError(f"Phase 5 {split_name} feature validation failed: dataset is empty.")
     if df[COL_STOCK_CODE].isna().any():
         raise ValueError(f"Phase 5 {split_name} feature validation failed: null stock code found.")
-    if df["InvoiceDay"].isna().any():
-        raise ValueError(f"Phase 5 {split_name} feature validation failed: null InvoiceDay found.")
-    if df[["DailyUnits", "Lag1Units", "Lag7Units", "Rolling7MeanUnits"]].isna().any().any():
+    if df["invoice_day"].isna().any():
+        raise ValueError(f"Phase 5 {split_name} feature validation failed: null invoice_day found.")
+    if df[["daily_units", "lag1_units", "lag7_units", "rolling7_mean_units"]].isna().any().any():
         raise ValueError(
             f"Phase 5 {split_name} feature validation failed: null demand values found."
         )
-    if (df[["DailyUnits", "Lag1Units", "Lag7Units", "Rolling7MeanUnits"]] < 0).any().any():
+    if (df[["daily_units", "lag1_units", "lag7_units", "rolling7_mean_units"]] < 0).any().any():
         raise ValueError(
             f"Phase 5 {split_name} feature validation failed: negative demand values found."
         )

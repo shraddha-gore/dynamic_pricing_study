@@ -10,15 +10,15 @@ if str(PROJECT_ROOT_PATH) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT_PATH))
 
 from config import (
-    COL_COUNTRY,
-    COL_INVOICE,
-    COL_INVOICE_DATE,
-    COL_PRICE,
-    COL_QUANTITY,
     DOCS_PATH,
     INVOICE_CANCELLATION_PREFIX,
     PHASE1_REPORT_FILE,
     PROJECT_ROOT,
+    RAW_COL_COUNTRY,
+    RAW_COL_INVOICE,
+    RAW_COL_INVOICE_DATE,
+    RAW_COL_PRICE,
+    RAW_COL_QUANTITY,
     RAW_DATA_FILE,
     RAW_INSPECTION_PERCENTILES,
     RAW_DATA_PATH,
@@ -68,47 +68,47 @@ def build_report(df: pd.DataFrame) -> str:
 
     cancellations = 0
     cancellation_pct = 0.0
-    if COL_INVOICE in df.columns:
-        cancellation_mask = df[COL_INVOICE].astype(str).str.startswith(INVOICE_CANCELLATION_PREFIX, na=False)
+    if RAW_COL_INVOICE in df.columns:
+        cancellation_mask = df[RAW_COL_INVOICE].astype(str).str.startswith(INVOICE_CANCELLATION_PREFIX, na=False)
         cancellations = int(cancellation_mask.sum())
         cancellation_pct = (cancellations / len(df)) * 100 if len(df) else 0.0
 
     quantity_stats = (
-        df[COL_QUANTITY].describe(percentiles=RAW_INSPECTION_PERCENTILES).to_frame().reset_index()
-        if COL_QUANTITY in df.columns
-        else pd.DataFrame(columns=["index", COL_QUANTITY])
+        df[RAW_COL_QUANTITY].describe(percentiles=RAW_INSPECTION_PERCENTILES).to_frame().reset_index()
+        if RAW_COL_QUANTITY in df.columns
+        else pd.DataFrame(columns=["index", RAW_COL_QUANTITY])
     )
     price_stats = (
-        df[COL_PRICE].describe(percentiles=RAW_INSPECTION_PERCENTILES).to_frame().reset_index()
-        if COL_PRICE in df.columns
-        else pd.DataFrame(columns=["index", COL_PRICE])
+        df[RAW_COL_PRICE].describe(percentiles=RAW_INSPECTION_PERCENTILES).to_frame().reset_index()
+        if RAW_COL_PRICE in df.columns
+        else pd.DataFrame(columns=["index", RAW_COL_PRICE])
     )
 
     quantity_quality = pd.DataFrame(
         [
-            {"metric": "negative_quantity_rows", "value": int((df[COL_QUANTITY] < 0).sum()) if COL_QUANTITY in df.columns else 0},
-            {"metric": "zero_quantity_rows", "value": int((df[COL_QUANTITY] == 0).sum()) if COL_QUANTITY in df.columns else 0},
+            {"metric": "negative_quantity_rows", "value": int((df[RAW_COL_QUANTITY] < 0).sum()) if RAW_COL_QUANTITY in df.columns else 0},
+            {"metric": "zero_quantity_rows", "value": int((df[RAW_COL_QUANTITY] == 0).sum()) if RAW_COL_QUANTITY in df.columns else 0},
         ]
     )
 
     price_quality = pd.DataFrame(
         [
-            {"metric": "negative_price_rows", "value": int((df[COL_PRICE] < 0).sum()) if COL_PRICE in df.columns else 0},
-            {"metric": "zero_price_rows", "value": int((df[COL_PRICE] == 0).sum()) if COL_PRICE in df.columns else 0},
+            {"metric": "negative_price_rows", "value": int((df[RAW_COL_PRICE] < 0).sum()) if RAW_COL_PRICE in df.columns else 0},
+            {"metric": "zero_price_rows", "value": int((df[RAW_COL_PRICE] == 0).sum()) if RAW_COL_PRICE in df.columns else 0},
         ]
     )
 
     country_distribution = (
-        df[COL_COUNTRY].value_counts(dropna=False).rename_axis("country").reset_index(name="row_count")
-        if COL_COUNTRY in df.columns
+        df[RAW_COL_COUNTRY].value_counts(dropna=False).rename_axis("country").reset_index(name="row_count")
+        if RAW_COL_COUNTRY in df.columns
         else pd.DataFrame(columns=["country", "row_count"])
     )
 
-    if COL_QUANTITY in df.columns and COL_PRICE in df.columns and COL_COUNTRY in df.columns:
+    if RAW_COL_QUANTITY in df.columns and RAW_COL_PRICE in df.columns and RAW_COL_COUNTRY in df.columns:
         revenue_frame = df.copy()
-        revenue_frame["Revenue"] = revenue_frame[COL_QUANTITY] * revenue_frame[COL_PRICE]
+        revenue_frame["Revenue"] = revenue_frame[RAW_COL_QUANTITY] * revenue_frame[RAW_COL_PRICE]
         revenue_country = (
-            revenue_frame.groupby(COL_COUNTRY, dropna=False)["Revenue"]
+            revenue_frame.groupby(RAW_COL_COUNTRY, dropna=False)["Revenue"]
             .sum()
             .sort_values(ascending=False)
             .rename_axis("country")
@@ -117,9 +117,9 @@ def build_report(df: pd.DataFrame) -> str:
     else:
         revenue_country = pd.DataFrame(columns=["country", "Revenue"])
 
-    date_range_text = f"{COL_INVOICE_DATE} column not found."
-    if COL_INVOICE_DATE in df.columns:
-        parsed_dates = pd.to_datetime(df[COL_INVOICE_DATE], errors="coerce", format="mixed")
+    date_range_text = f"{RAW_COL_INVOICE_DATE} column not found."
+    if RAW_COL_INVOICE_DATE in df.columns:
+        parsed_dates = pd.to_datetime(df[RAW_COL_INVOICE_DATE], errors="coerce", format="mixed")
         min_date = parsed_dates.min()
         max_date = parsed_dates.max()
         missing_dates = int(parsed_dates.isna().sum())

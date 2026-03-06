@@ -82,9 +82,9 @@ def _build_report(selected: pd.DataFrame) -> str:
         lines.append(
             (
                 f"{rank}. {getattr(row, COL_STOCK_CODE)} - {getattr(row, COL_DESCRIPTION)} "
-                f"(Revenue: {_format_currency(getattr(row, 'Revenue'))}, "
-                f"PriceStd: {_format_float(getattr(row, 'PriceStd'))}, "
-                f"ActiveDays: {int(getattr(row, 'ActiveDays'))})"
+                f"(Revenue: {_format_currency(getattr(row, 'revenue'))}, "
+                f"PriceStd: {_format_float(getattr(row, 'price_std'))}, "
+                f"ActiveDays: {int(getattr(row, 'active_days'))})"
             )
         )
     return "\n".join(lines)
@@ -111,32 +111,32 @@ def run_phase3() -> None:
     if df.empty:
         raise ValueError("Phase 3 cannot continue: cleaned dataset is empty after date validation.")
 
-    df["InvoiceDay"] = df[COL_INVOICE_DATE].dt.date
-    df["RevenueLine"] = df[COL_PRICE] * df[COL_QUANTITY]
+    df["invoice_day"] = df[COL_INVOICE_DATE].dt.date
+    df["revenue_line"] = df[COL_PRICE] * df[COL_QUANTITY]
 
     metrics = (
         df.groupby(COL_STOCK_CODE)
         .agg(
-            Revenue=("RevenueLine", "sum"),
-            PriceStd=(COL_PRICE, "std"),
-            ActiveDays=("InvoiceDay", "nunique"),
+            revenue=("revenue_line", "sum"),
+            price_std=(COL_PRICE, "std"),
+            active_days=("invoice_day", "nunique"),
         )
         .reset_index()
     )
     logger.info("Computed product-level metrics for %s products.", len(metrics))
 
     eligible = metrics[
-        (metrics["PriceStd"] > MIN_PRICE_STD) & (metrics["ActiveDays"] >= MIN_ACTIVE_DAYS)
+        (metrics["price_std"] > MIN_PRICE_STD) & (metrics["active_days"] >= MIN_ACTIVE_DAYS)
     ].copy()
     logger.info(
-        "Products passing filters (PriceStd > %.4f and ActiveDays >= %s): %s",
+        "Products passing filters (price_std > %.4f and active_days >= %s): %s",
         MIN_PRICE_STD,
         MIN_ACTIVE_DAYS,
         len(eligible),
     )
 
     selected = (
-        eligible.sort_values("Revenue", ascending=False)
+        eligible.sort_values("revenue", ascending=False)
         .head(SELECTED_PRODUCT_COUNT)
         .copy()
     )
@@ -144,7 +144,7 @@ def run_phase3() -> None:
     description_map = _build_description_map(df)
     selected[COL_DESCRIPTION] = selected[COL_STOCK_CODE].map(description_map).fillna("UNKNOWN DESCRIPTION")
     selected = selected[
-        [COL_STOCK_CODE, COL_DESCRIPTION, "Revenue", "PriceStd", "ActiveDays"]
+        [COL_STOCK_CODE, COL_DESCRIPTION, "revenue", "price_std", "active_days"]
     ].reset_index(drop=True)
 
     validate_selected_products(selected)

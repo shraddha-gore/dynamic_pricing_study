@@ -27,28 +27,28 @@ INPUT_PATH = CONFIGURED_ROOT_PATH / DAILY_AGG_DATA_PATH
 TRAIN_OUTPUT_PATH = CONFIGURED_ROOT_PATH / FEATURE_TRAIN_DATA_PATH
 TEST_OUTPUT_PATH = CONFIGURED_ROOT_PATH / FEATURE_TEST_DATA_PATH
 
-WEEKDAY_COLUMNS = [f"Weekday_{i}" for i in range(7)]
-MONTH_COLUMNS = [f"Month_{i}" for i in range(1, 13)]
+WEEKDAY_COLUMNS = [f"weekday_{i}" for i in range(7)]
+MONTH_COLUMNS = [f"month_{i}" for i in range(1, 13)]
 
 
 def _add_demand_lag_features(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.sort_values([COL_STOCK_CODE, "InvoiceDay"], kind="mergesort").copy()
-    grouped_units = df.groupby(COL_STOCK_CODE)["DailyUnits"]
+    df = df.sort_values([COL_STOCK_CODE, "invoice_day"], kind="mergesort").copy()
+    grouped_units = df.groupby(COL_STOCK_CODE)["daily_units"]
 
-    df["Lag1Units"] = grouped_units.shift(1)
-    df["Lag7Units"] = grouped_units.shift(7)
-    df["Rolling7MeanUnits"] = (
+    df["lag1_units"] = grouped_units.shift(1)
+    df["lag7_units"] = grouped_units.shift(7)
+    df["rolling7_mean_units"] = (
         grouped_units.shift(1).rolling(window=7, min_periods=7).mean().reset_index(level=0, drop=True)
     )
     return df
 
 
 def _add_seasonality_features(df: pd.DataFrame) -> pd.DataFrame:
-    df["Weekday"] = df["InvoiceDay"].dt.weekday
-    df["Month"] = df["InvoiceDay"].dt.month
+    df["weekday"] = df["invoice_day"].dt.weekday
+    df["month"] = df["invoice_day"].dt.month
 
-    weekday_dummies = pd.get_dummies(df["Weekday"], prefix="Weekday", dtype="int8")
-    month_dummies = pd.get_dummies(df["Month"], prefix="Month", dtype="int8")
+    weekday_dummies = pd.get_dummies(df["weekday"], prefix="weekday", dtype="int8")
+    month_dummies = pd.get_dummies(df["month"], prefix="month", dtype="int8")
 
     for col in WEEKDAY_COLUMNS:
         if col not in weekday_dummies.columns:
@@ -69,7 +69,7 @@ def _split_train_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     test_parts: list[pd.DataFrame] = []
 
     for stock_code, product_df in df.groupby(COL_STOCK_CODE, sort=False):
-        product_df = product_df.sort_values("InvoiceDay", kind="mergesort").reset_index(drop=True)
+        product_df = product_df.sort_values("invoice_day", kind="mergesort").reset_index(drop=True)
         split_idx = int(len(product_df) * TRAIN_SPLIT_RATIO)
         if split_idx <= 0 or split_idx >= len(product_df):
             raise ValueError(
@@ -96,27 +96,27 @@ def run_phase5() -> None:
     df = pd.read_parquet(INPUT_PATH)
     ensure_required_columns(
         df,
-        [COL_STOCK_CODE, "InvoiceDay", "DailyUnits", "AvgDailyPrice", "DailyRevenue"],
+        [COL_STOCK_CODE, "invoice_day", "daily_units", "avg_daily_price", "daily_revenue"],
         "Phase 5 feature engineering",
     )
 
-    df["InvoiceDay"] = pd.to_datetime(df["InvoiceDay"], errors="coerce", format="mixed")
-    df = df[df["InvoiceDay"].notna()].copy()
+    df["invoice_day"] = pd.to_datetime(df["invoice_day"], errors="coerce", format="mixed")
+    df = df[df["invoice_day"].notna()].copy()
     if df.empty:
-        raise ValueError("Phase 5 feature engineering failed: no valid rows after InvoiceDay parsing.")
+        raise ValueError("Phase 5 feature engineering failed: no valid rows after invoice_day parsing.")
 
     input_rows = len(df)
     df = _add_demand_lag_features(df)
     df = _add_seasonality_features(df)
 
-    required_feature_columns = ["Lag1Units", "Lag7Units", "Rolling7MeanUnits"]
+    required_feature_columns = ["lag1_units", "lag7_units", "rolling7_mean_units"]
     df = df.dropna(subset=required_feature_columns).copy()
     if df.empty:
         raise ValueError("Phase 5 feature engineering failed: no rows left after lag feature creation.")
 
     train_df, test_df = _split_train_test(df)
-    train_df = train_df.sort_values([COL_STOCK_CODE, "InvoiceDay"], kind="mergesort").reset_index(drop=True)
-    test_df = test_df.sort_values([COL_STOCK_CODE, "InvoiceDay"], kind="mergesort").reset_index(drop=True)
+    train_df = train_df.sort_values([COL_STOCK_CODE, "invoice_day"], kind="mergesort").reset_index(drop=True)
+    test_df = test_df.sort_values([COL_STOCK_CODE, "invoice_day"], kind="mergesort").reset_index(drop=True)
 
     validate_phase5_features(train_df, "train")
     validate_phase5_features(test_df, "test")
