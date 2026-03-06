@@ -9,6 +9,7 @@ from config import (
     PHASE3_LOG_FILE,
     PHASE4_LOG_FILE,
     PHASE5_LOG_FILE,
+    PHASE6_LOG_FILE,
     PROJECT_ROOT,
 )
 
@@ -65,4 +66,10 @@ def configure_logging(phases: list[int] | None = None) -> None:
         phase_handler = logging.FileHandler(logs_dir / PHASE5_LOG_FILE, mode="a")
         phase_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
         phase_handler.addFilter(LoggerPrefixFilter(("preprocessing.feature_engineering",)))
+        root_logger.addHandler(phase_handler)
+
+    if 6 in selected_phases:
+        phase_handler = logging.FileHandler(logs_dir / PHASE6_LOG_FILE, mode="a")
+        phase_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+        phase_handler.addFilter(LoggerPrefixFilter(("models.demand_model",)))
         root_logger.addHandler(phase_handler)

@@ -1,9 +1,11 @@
 venv/
 __pycache__/
+**/__pycache__/
 *.pyc
 logs/
 data/processed/
 results/
+models/artifacts/
 .env
 .DS_Store
 .pytest_cache/

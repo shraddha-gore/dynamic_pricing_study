@@ -1,3 +1,4 @@
+from models.demand_model import run_phase6
 from preprocessing.aggregate_daily import run_phase4
 from preprocessing.clean_data import run_phase2
 from preprocessing.feature_engineering import run_phase5
@@ -10,6 +11,7 @@ PHASE_MAP = {
     3: run_phase3,
     4: run_phase4,
     5: run_phase5,
+    6: run_phase6,
 }
 
 def run_phase(phase: int) -> None:
