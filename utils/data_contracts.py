@@ -9,6 +9,11 @@ from config import (
     COL_PRICE,
     COL_QUANTITY,
     COL_STOCK_CODE,
+    PHASE2_FROZEN_COLUMNS,
+    PHASE3_FROZEN_COLUMNS,
+    PHASE4_FROZEN_COLUMNS,
+    PHASE5_FROZEN_COLUMNS,
+    PHASE5_FROZEN_FEATURE_COLUMNS,
     PRICE_OUTLIER_THRESHOLD,
     SELECTED_PRODUCT_COUNT,
     TARGET_COUNTRY,
@@ -16,18 +21,20 @@ from config import (
 from preprocessing.common import ensure_required_columns
 
 
+def _validate_exact_columns(df: pd.DataFrame, expected_columns: list[str], context: str) -> None:
+    actual_columns = list(df.columns)
+    if actual_columns != expected_columns:
+        raise ValueError(
+            f"{context} validation failed: schema mismatch.\n"
+            f"Expected columns: {expected_columns}\n"
+            f"Actual columns:   {actual_columns}"
+        )
+
+
 def validate_clean_transactions(df: pd.DataFrame) -> None:
-    required = [
-        COL_INVOICE,
-        COL_STOCK_CODE,
-        COL_DESCRIPTION,
-        COL_QUANTITY,
-        COL_INVOICE_DATE,
-        COL_PRICE,
-        COL_CUSTOMER_ID,
-        COL_COUNTRY,
-    ]
+    required = PHASE2_FROZEN_COLUMNS
     ensure_required_columns(df, required, "Phase 2 cleaned dataset")
+    _validate_exact_columns(df, PHASE2_FROZEN_COLUMNS, "Phase 2 cleaned dataset")
 
     if df.empty:
         raise ValueError("Phase 2 cleaned dataset validation failed: dataset is empty.")
@@ -42,8 +49,9 @@ def validate_clean_transactions(df: pd.DataFrame) -> None:
 
 
 def validate_selected_products(df: pd.DataFrame) -> None:
-    required = [COL_STOCK_CODE, COL_DESCRIPTION, "revenue", "price_std", "active_days"]
+    required = PHASE3_FROZEN_COLUMNS
     ensure_required_columns(df, required, "Phase 3 selected products dataset")
+    _validate_exact_columns(df, PHASE3_FROZEN_COLUMNS, "Phase 3 selected products dataset")
 
     if df.empty:
         raise ValueError("Phase 3 selected products validation failed: dataset is empty.")
@@ -56,8 +64,9 @@ def validate_selected_products(df: pd.DataFrame) -> None:
 
 
 def validate_daily_aggregation(df: pd.DataFrame) -> None:
-    required = [COL_STOCK_CODE, "invoice_day", "daily_units", "avg_daily_price", "daily_revenue"]
+    required = PHASE4_FROZEN_COLUMNS
     ensure_required_columns(df, required, "Phase 4 daily aggregation dataset")
+    _validate_exact_columns(df, PHASE4_FROZEN_COLUMNS, "Phase 4 daily aggregation dataset")
 
     if df.empty:
         raise ValueError("Phase 4 daily aggregation validation failed: dataset is empty.")
@@ -70,18 +79,10 @@ def validate_daily_aggregation(df: pd.DataFrame) -> None:
 def validate_phase5_features(df: pd.DataFrame, split_name: str) -> None:
     weekday_columns = [f"weekday_{i}" for i in range(7)]
     month_columns = [f"month_{i}" for i in range(1, 13)]
-    required = [
-        COL_STOCK_CODE,
-        "invoice_day",
-        "daily_units",
-        "avg_daily_price",
-        "daily_revenue",
-        "lag1_units",
-        "lag7_units",
-        "rolling7_mean_units",
-    ] + weekday_columns + month_columns
+    required = PHASE5_FROZEN_COLUMNS
 
     ensure_required_columns(df, required, f"Phase 5 {split_name} feature dataset")
+    _validate_exact_columns(df, PHASE5_FROZEN_COLUMNS, f"Phase 5 {split_name} feature dataset")
 
     if df.empty:
         raise ValueError(f"Phase 5 {split_name} feature validation failed: dataset is empty.")
@@ -107,4 +108,10 @@ def validate_phase5_features(df: pd.DataFrame, split_name: str) -> None:
     if not (month_sum == 1).all():
         raise ValueError(
             f"Phase 5 {split_name} feature validation failed: month one-hot encoding invalid."
+        )
+
+    missing_frozen_features = [col for col in PHASE5_FROZEN_FEATURE_COLUMNS if col not in df.columns]
+    if missing_frozen_features:
+        raise ValueError(
+            f"Phase 5 {split_name} feature validation failed: missing frozen feature columns: {missing_frozen_features}"
         )
