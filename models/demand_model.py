@@ -18,6 +18,7 @@ from config import (
     FEATURE_TRAIN_DATA_PATH,
     PHASE6_FEATURE_COLUMNS,
     PHASE6_METRICS_PATH,
+    PHASE6_MODEL_TYPE,
     PHASE6_MODEL_ARTIFACT_PATH,
     PHASE6_TARGET_COLUMN,
     PROJECT_ROOT,
@@ -73,7 +74,7 @@ def run_phase6() -> None:
     r2 = float(r2_score(y_test, y_pred))
 
     metrics = {
-        "model_type": "LinearRegression",
+        "model_type": PHASE6_MODEL_TYPE,
         "target": PHASE6_TARGET_COLUMN,
         "features": PHASE6_FEATURE_COLUMNS,
         "train_rows": int(len(train_df)),

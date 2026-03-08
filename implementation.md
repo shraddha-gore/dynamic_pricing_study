@@ -112,9 +112,10 @@ Centralize in `config.py`:
 - Raw-to-canonical mapping: `RAW_TO_CANONICAL_COLUMNS`
 - Frozen output schemas: `PHASE2_FROZEN_COLUMNS`, `PHASE3_FROZEN_COLUMNS`, `PHASE4_FROZEN_COLUMNS`, `PHASE5_FROZEN_COLUMNS`
 - Frozen Phase 5 model feature schema: `PHASE5_FROZEN_FEATURE_COLUMNS`
-- Phase 6 model schema params: `PHASE6_FEATURE_COLUMNS`, `PHASE6_TARGET_COLUMN`
+- Phase 5 calendar schema helpers: `PHASE5_WEEKDAY_COLUMNS`, `PHASE5_MONTH_COLUMNS`
+- Phase 6 model schema params: `PHASE6_FEATURE_COLUMNS`, `PHASE6_TARGET_COLUMN`, `PHASE6_MODEL_TYPE`
 - Future phases must follow the same freeze pattern before being marked `Completed`
-- Experimental params: `TRAIN_SPLIT_RATIO`, `PRICE_GRID_PERCENTAGE`, `MAX_DAILY_CHANGE`, `HYBRID_SMOOTHING_ALPHA`
+- Experimental params: `TRAIN_SPLIT_RATIO`, `PRICE_GRID_PERCENTAGE`, `MAX_DAILY_CHANGE`, `HYBRID_SMOOTHING_ALPHA`, `RULE_PRICE_INCREASE`, `RULE_PRICE_DECREASE`, `RULE_PRICE_CLAMP`
 - Phase 2 params: `TARGET_COUNTRY`, `INVOICE_CANCELLATION_PREFIX`, `PRICE_OUTLIER_THRESHOLD`, `PRICE_OUTLIER_REVIEW_TOP_N`
 - Phase 3 params: `MIN_ACTIVE_DAYS`, `SELECTED_PRODUCT_COUNT`, `MIN_PRICE_STD`
 - Phase output files: `PHASE1_REPORT_FILE`, `PHASE1_LOG_FILE`, `PHASE2_LOG_FILE`, `PHASE3_REPORT_FILE`, `PHASE3_LOG_FILE`, `PHASE4_LOG_FILE`, `PHASE5_LOG_FILE`, `PHASE6_LOG_FILE`, `PHASE7_LOG_FILE`, `EXPERIMENT_LOG_FILE`
@@ -507,7 +508,7 @@ Instead of automatic percentile trimming:
 ### Status
 - Completed
 
-### Implemented Scope
+### Planned Scope
 - Input artifacts: `data/processed/feature_test_data.parquet`, `models/artifacts/demand_model.joblib`
 - Supported strategies: `rule`, `ml`, `hybrid`
 - For each product/day row, set `base_price = avg_daily_price` and generate candidate prices using `PHASE7_GRID_POINTS` over `+/- PRICE_GRID_PERCENTAGE`
@@ -523,7 +524,7 @@ Instead of automatic percentile trimming:
 ### Frozen Results
 - Candidate schema: `invoice_day`, `stock_code`, `candidate_price`, `predicted_demand`, `predicted_revenue`, `candidate_rank_by_revenue`
 - Result schema: `invoice_day`, `stock_code`, `base_price`, `chosen_price`, `predicted_demand`, `predicted_revenue`, `strategy_name`
-- Latest run summary (`ml` strategy run):
+- Latest run summary (`rule` strategy run):
   1. Test rows: 266
   2. Candidate rows: 1,330
   3. Result rows: 266
@@ -551,15 +552,28 @@ Instead of automatic percentile trimming:
 - `results/simulation/rule_results.parquet`
 
 ### Status
-- Planned
+- Completed
 
 ### Planned Scope
-- Increase price 2% if predicted demand > rolling mean
-- Decrease price 2% if predicted demand < rolling mean
-- Clamp daily change at +/-3%
+- Compare `base_predicted_demand` (predicted demand at `base_price`) against `rolling7_mean_units`
+- Increase target price by `RULE_PRICE_INCREASE` when base predicted demand is above rolling mean
+- Decrease target price by `RULE_PRICE_DECREASE` when base predicted demand is below rolling mean
+- Keep no-change (`target_price = base_price`) when values are equal
+- Clamp target price to `[base_price * (1 - RULE_PRICE_CLAMP), base_price * (1 + RULE_PRICE_CLAMP)]`
+- Select final `chosen_price` from the Phase 7 candidate grid using deterministic tie-break:
+  1. smallest distance to clamped target price
+  2. smallest distance to base price
+  3. lower candidate price
 
 ### Frozen Results
-- Pending phase completion; frozen outputs and run summary will be added after Phase 8 execution is finalized
+- Strategy file: `strategies/rule_based.py`
+- Latest run summary:
+  1. Result rows: 266
+  2. Date range: 2011-10-02 to 2011-12-09
+  3. Unique products: 5
+  4. Output files:
+     - `results/simulation/rule_candidates.parquet`
+     - `results/simulation/rule_results.parquet`
 
 ### Phase Handoff Contract
 - Consumes Phase 7 candidate tables and emits chosen-price simulation results for Phase 11 evaluation

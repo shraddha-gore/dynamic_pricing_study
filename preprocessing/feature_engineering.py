@@ -14,6 +14,8 @@ from config import (
     DAILY_AGG_DATA_PATH,
     FEATURE_TEST_DATA_PATH,
     FEATURE_TRAIN_DATA_PATH,
+    PHASE5_MONTH_COLUMNS,
+    PHASE5_WEEKDAY_COLUMNS,
     PROJECT_ROOT,
     TRAIN_SPLIT_RATIO,
 )
@@ -26,10 +28,6 @@ CONFIGURED_ROOT_PATH = configured_root(PROJECT_ROOT)
 INPUT_PATH = CONFIGURED_ROOT_PATH / DAILY_AGG_DATA_PATH
 TRAIN_OUTPUT_PATH = CONFIGURED_ROOT_PATH / FEATURE_TRAIN_DATA_PATH
 TEST_OUTPUT_PATH = CONFIGURED_ROOT_PATH / FEATURE_TEST_DATA_PATH
-
-WEEKDAY_COLUMNS = [f"weekday_{i}" for i in range(7)]
-MONTH_COLUMNS = [f"month_{i}" for i in range(1, 13)]
-
 
 def _add_demand_lag_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.sort_values([COL_STOCK_CODE, "invoice_day"], kind="mergesort").copy()
@@ -50,15 +48,15 @@ def _add_seasonality_features(df: pd.DataFrame) -> pd.DataFrame:
     weekday_dummies = pd.get_dummies(df["weekday"], prefix="weekday", dtype="int8")
     month_dummies = pd.get_dummies(df["month"], prefix="month", dtype="int8")
 
-    for col in WEEKDAY_COLUMNS:
+    for col in PHASE5_WEEKDAY_COLUMNS:
         if col not in weekday_dummies.columns:
             weekday_dummies[col] = 0
-    for col in MONTH_COLUMNS:
+    for col in PHASE5_MONTH_COLUMNS:
         if col not in month_dummies.columns:
             month_dummies[col] = 0
 
-    weekday_dummies = weekday_dummies[WEEKDAY_COLUMNS]
-    month_dummies = month_dummies[MONTH_COLUMNS]
+    weekday_dummies = weekday_dummies[PHASE5_WEEKDAY_COLUMNS]
+    month_dummies = month_dummies[PHASE5_MONTH_COLUMNS]
 
     df = pd.concat([df, weekday_dummies, month_dummies], axis=1)
     return df

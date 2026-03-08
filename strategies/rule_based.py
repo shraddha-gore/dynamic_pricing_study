@@ -1,7 +1,22 @@
 import pandas as pd
 
+from config import RULE_PRICE_CLAMP, RULE_PRICE_DECREASE, RULE_PRICE_INCREASE
 
-RULE_ADJUSTMENT_PCT = 0.02
+
+def _clamp(value: float, low: float, high: float) -> float:
+    return min(max(value, low), high)
+
+
+def _select_candidate_price(candidate_table: pd.DataFrame, target_price: float, base_price: float) -> float:
+    ranked = candidate_table.assign(
+        distance_to_target=(candidate_table["candidate_price"] - target_price).abs(),
+        distance_to_base=(candidate_table["candidate_price"] - base_price).abs(),
+    ).sort_values(
+        by=["distance_to_target", "distance_to_base", "candidate_price"],
+        ascending=[True, True, True],
+        kind="mergesort",
+    )
+    return float(ranked.iloc[0]["candidate_price"])
 
 
 def choose_price(candidate_table: pd.DataFrame, context: dict) -> float:
@@ -20,11 +35,14 @@ def choose_price(candidate_table: pd.DataFrame, context: dict) -> float:
         base_predicted_demand = float(base_candidates.iloc[0]["predicted_demand"])
 
     if base_predicted_demand > rolling_mean_units:
-        target_price = base_price * (1.0 + RULE_ADJUSTMENT_PCT)
+        target_price = base_price * (1.0 + RULE_PRICE_INCREASE)
     elif base_predicted_demand < rolling_mean_units:
-        target_price = base_price * (1.0 - RULE_ADJUSTMENT_PCT)
+        target_price = base_price * (1.0 - RULE_PRICE_DECREASE)
     else:
         target_price = base_price
 
-    nearest_idx = (candidate_table["candidate_price"] - target_price).abs().idxmin()
-    return float(candidate_table.loc[nearest_idx, "candidate_price"])
+    lower_bound = base_price * (1.0 - RULE_PRICE_CLAMP)
+    upper_bound = base_price * (1.0 + RULE_PRICE_CLAMP)
+    clamped_target_price = _clamp(target_price, lower_bound, upper_bound)
+
+    return _select_candidate_price(candidate_table, clamped_target_price, base_price)

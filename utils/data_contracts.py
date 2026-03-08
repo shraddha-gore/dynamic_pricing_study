@@ -10,6 +10,8 @@ from config import (
     PHASE4_FROZEN_COLUMNS,
     PHASE5_FROZEN_COLUMNS,
     PHASE5_FROZEN_FEATURE_COLUMNS,
+    PHASE5_MONTH_COLUMNS,
+    PHASE5_WEEKDAY_COLUMNS,
     PHASE7_CANDIDATE_FROZEN_COLUMNS,
     PHASE7_RESULT_FROZEN_COLUMNS,
     PRICE_OUTLIER_THRESHOLD,
@@ -75,8 +77,6 @@ def validate_daily_aggregation(df: pd.DataFrame) -> None:
 
 
 def validate_phase5_features(df: pd.DataFrame, split_name: str) -> None:
-    weekday_columns = [f"weekday_{i}" for i in range(7)]
-    month_columns = [f"month_{i}" for i in range(1, 13)]
     required = PHASE5_FROZEN_COLUMNS
 
     ensure_required_columns(df, required, f"Phase 5 {split_name} feature dataset")
@@ -97,8 +97,8 @@ def validate_phase5_features(df: pd.DataFrame, split_name: str) -> None:
             f"Phase 5 {split_name} feature validation failed: negative demand values found."
         )
 
-    weekday_sum = df[weekday_columns].sum(axis=1)
-    month_sum = df[month_columns].sum(axis=1)
+    weekday_sum = df[PHASE5_WEEKDAY_COLUMNS].sum(axis=1)
+    month_sum = df[PHASE5_MONTH_COLUMNS].sum(axis=1)
     if not (weekday_sum == 1).all():
         raise ValueError(
             f"Phase 5 {split_name} feature validation failed: weekday one-hot encoding invalid."

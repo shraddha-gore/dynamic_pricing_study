@@ -100,6 +100,9 @@ TRAIN_SPLIT_RATIO = 0.8
 PRICE_GRID_PERCENTAGE = 0.05      # +/-5% candidate grid
 MAX_DAILY_CHANGE = 0.03           # +/-3% clamp constraint
 HYBRID_SMOOTHING_ALPHA = 0.3      # 30% weight on ML price
+RULE_PRICE_INCREASE = 0.02        # +2% adjustment for rule strategy
+RULE_PRICE_DECREASE = 0.02        # -2% adjustment for rule strategy
+RULE_PRICE_CLAMP = 0.03           # +/-3% clamp for rule strategy
 
 
 # -----------------------------
@@ -189,6 +192,8 @@ PHASE5_FROZEN_COLUMNS = [
     "month_11",
     "month_12",
 ]
+PHASE5_WEEKDAY_COLUMNS = [f"weekday_{i}" for i in range(7)]
+PHASE5_MONTH_COLUMNS = [f"month_{i}" for i in range(1, 13)]
 PHASE5_FROZEN_FEATURE_COLUMNS = [
     "lag1_units",
     "lag7_units",
@@ -219,6 +224,7 @@ PHASE5_FROZEN_FEATURE_COLUMNS = [
 # -----------------------------
 # Phase 6 constants
 # -----------------------------
+PHASE6_MODEL_TYPE = "LinearRegression"
 PHASE6_FEATURE_COLUMNS = PHASE5_FROZEN_FEATURE_COLUMNS
 PHASE6_TARGET_COLUMN = "daily_units"
 
