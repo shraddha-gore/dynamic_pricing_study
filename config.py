@@ -102,7 +102,6 @@ MAX_DAILY_CHANGE = 0.03           # +/-3% clamp constraint
 HYBRID_SMOOTHING_ALPHA = 0.3      # 30% weight on ML price
 RULE_PRICE_INCREASE = 0.02        # +2% adjustment for rule strategy
 RULE_PRICE_DECREASE = 0.02        # -2% adjustment for rule strategy
-RULE_PRICE_CLAMP = 0.03           # +/-3% clamp for rule strategy
 
 
 # -----------------------------

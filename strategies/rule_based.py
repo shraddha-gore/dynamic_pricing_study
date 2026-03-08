@@ -1,10 +1,6 @@
 import pandas as pd
 
-from config import RULE_PRICE_CLAMP, RULE_PRICE_DECREASE, RULE_PRICE_INCREASE
-
-
-def _clamp(value: float, low: float, high: float) -> float:
-    return min(max(value, low), high)
+from config import RULE_PRICE_DECREASE, RULE_PRICE_INCREASE
 
 
 def _select_candidate_price(candidate_table: pd.DataFrame, target_price: float, base_price: float) -> float:
@@ -41,8 +37,4 @@ def choose_price(candidate_table: pd.DataFrame, context: dict) -> float:
     else:
         target_price = base_price
 
-    lower_bound = base_price * (1.0 - RULE_PRICE_CLAMP)
-    upper_bound = base_price * (1.0 + RULE_PRICE_CLAMP)
-    clamped_target_price = _clamp(target_price, lower_bound, upper_bound)
-
-    return _select_candidate_price(candidate_table, clamped_target_price, base_price)
+    return _select_candidate_price(candidate_table, target_price, base_price)

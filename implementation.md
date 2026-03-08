@@ -102,6 +102,7 @@ Data -> Inspection -> Cleaning -> Product Selection -> Aggregation -> Feature En
 ### Documentation Sync Rule
 - Any logic or handoff change must update the relevant phase section in `implementation.md`
 - Keep outputs, frozen results, and executable coverage notes aligned with code
+- Every completed phase must include: `Status`, `Implemented Scope`, `Frozen Results`, `Phase Handoff Contract`, and latest verified run summary
 
 ## Global Configuration Requirements
 
@@ -115,7 +116,7 @@ Centralize in `config.py`:
 - Phase 5 calendar schema helpers: `PHASE5_WEEKDAY_COLUMNS`, `PHASE5_MONTH_COLUMNS`
 - Phase 6 model schema params: `PHASE6_FEATURE_COLUMNS`, `PHASE6_TARGET_COLUMN`, `PHASE6_MODEL_TYPE`
 - Future phases must follow the same freeze pattern before being marked `Completed`
-- Experimental params: `TRAIN_SPLIT_RATIO`, `PRICE_GRID_PERCENTAGE`, `MAX_DAILY_CHANGE`, `HYBRID_SMOOTHING_ALPHA`, `RULE_PRICE_INCREASE`, `RULE_PRICE_DECREASE`, `RULE_PRICE_CLAMP`
+- Experimental params: `TRAIN_SPLIT_RATIO`, `PRICE_GRID_PERCENTAGE`, `MAX_DAILY_CHANGE`, `HYBRID_SMOOTHING_ALPHA`, `RULE_PRICE_INCREASE`, `RULE_PRICE_DECREASE`
 - Phase 2 params: `TARGET_COUNTRY`, `INVOICE_CANCELLATION_PREFIX`, `PRICE_OUTLIER_THRESHOLD`, `PRICE_OUTLIER_REVIEW_TOP_N`
 - Phase 3 params: `MIN_ACTIVE_DAYS`, `SELECTED_PRODUCT_COUNT`, `MIN_PRICE_STD`
 - Phase output files: `PHASE1_REPORT_FILE`, `PHASE1_LOG_FILE`, `PHASE2_LOG_FILE`, `PHASE3_REPORT_FILE`, `PHASE3_LOG_FILE`, `PHASE4_LOG_FILE`, `PHASE5_LOG_FILE`, `PHASE6_LOG_FILE`, `PHASE7_LOG_FILE`, `EXPERIMENT_LOG_FILE`
@@ -146,6 +147,11 @@ Centralize in `config.py`:
 ### Status
 - Completed
 
+### Implemented Scope
+- Initialize baseline repository folder structure for data, preprocessing, modeling, simulation, evaluation, and documentation
+- Establish centralized project configuration in `config.py` for paths and shared constants
+- Set up pipeline entry points and phase execution scaffolding for reproducible runs
+
 ### Frozen Results
 - Reproducible project skeleton established for phased execution
 
@@ -167,6 +173,12 @@ Centralize in `config.py`:
 
 ### Status
 - Completed
+
+### Implemented Scope
+- Load raw CSV from immutable source path and inspect dataset shape, dtypes, and null profile
+- Quantify data quality signals (cancellations, negative/zero quantity, negative/zero price)
+- Profile country distribution, revenue-by-country, and temporal coverage
+- Persist an auditable machine-readable inspection report for downstream cleaning decisions
 
 ### Frozen Results
 - Rows: 541,910
@@ -196,6 +208,12 @@ Centralize in `config.py`:
 
 ### Status
 - Completed
+
+### Implemented Scope
+- Normalize raw headers to canonical `snake_case` schema
+- Apply deterministic cleaning filters for market scope, cancellations, invalid quantities/prices, and non-product stock codes
+- Review positive price tail and remove economically implausible outliers using configured threshold controls
+- Coerce and validate data types, enforce quality checks, and persist validated cleaned output for downstream phases
 
 ### Cleaning Principles
 Cleaning must:
@@ -332,6 +350,12 @@ Instead of automatic percentile trimming:
 ### Status
 - Completed
 
+### Implemented Scope
+- Compute product-level metrics (`revenue`, `price_std`, `active_days`) from cleaned transactions
+- Filter products using activity and price-variation constraints
+- Select top `SELECTED_PRODUCT_COUNT` products by revenue with deterministic ordering
+- Persist selected product list and machine-readable selection report
+
 ### Frozen Results
 - Selection criteria: `price_std > 0`, `active_days >= 150`, ranked by `revenue`
 - Products analyzed: 3,801
@@ -365,6 +389,12 @@ Instead of automatic percentile trimming:
 
 ### Status
 - Completed
+
+### Implemented Scope
+- Load cleaned transactions and restrict to frozen selected product universe
+- Aggregate to one row per (`stock_code`, `invoice_day`) with units, average price, and revenue
+- Enforce schema and non-null contract validations for aggregated output
+- Persist daily product-level dataset for feature engineering
 
 ### Frozen Results
 - Source data: `data/processed/clean_transactions.parquet`
@@ -405,6 +435,12 @@ Instead of automatic percentile trimming:
 
 ### Status
 - Completed
+
+### Implemented Scope
+- Build lag/rolling demand features and calendar seasonality features at product-day level
+- Generate complete weekday/month one-hot columns with frozen column contract
+- Drop rows lacking required lag history and split chronologically per product (80/20)
+- Validate train/test schemas and persist feature datasets for model training/evaluation
 
 ### Frozen Results
 - Source data: `data/processed/daily_product_data.parquet`
@@ -457,7 +493,7 @@ Instead of automatic percentile trimming:
 ### Status
 - Completed
 
-### Planned Scope
+### Implemented Scope
 - Train a Linear Regression model using Phase 5 training data
 - Target: `daily_units`
 - Features: lag features, `avg_daily_price`, and seasonality indicators defined in `PHASE6_FEATURE_COLUMNS`
@@ -508,13 +544,15 @@ Instead of automatic percentile trimming:
 ### Status
 - Completed
 
-### Planned Scope
+### Implemented Scope
 - Input artifacts: `data/processed/feature_test_data.parquet`, `models/artifacts/demand_model.joblib`
 - Supported strategies: `rule`, `ml`, `hybrid`
 - For each product/day row, set `base_price = avg_daily_price` and generate candidate prices using `PHASE7_GRID_POINTS` over `+/- PRICE_GRID_PERCENTAGE`
 - Predict demand for each candidate using the frozen Phase 6 model, then clamp to non-negative values
 - Compute candidate revenue using `predicted_revenue = candidate_price * predicted_demand`
 - Build a per-row candidate decision table and pass it to the selected strategy implementation
+- Strategy interface contract: `choose_price(candidate_table, context)`
+- Approved context schema: `base_price`, `row`, `strategy_name`
 - Persist both candidate-level outputs and chosen-price result outputs as Parquet files
 - Validate output schemas using `PHASE7_CANDIDATE_FROZEN_COLUMNS` and `PHASE7_RESULT_FROZEN_COLUMNS`
 - Execute one strategy per run, for example: `python main.py --simulate rule`
@@ -532,7 +570,7 @@ Instead of automatic percentile trimming:
   5. Unique products: 5
 
 ### Phase Handoff Contract
-- Phase 8-10 strategies must consume only the Phase 7 candidate table and return a chosen price
+- Phase 8-10 strategies must consume the Phase 7 candidate table and approved simulator context (`base_price`, `row`, `strategy_name`) and return a single `chosen_price` to the simulator
 - Phase 11 evaluation must consume Phase 7 result outputs; no strategy may bypass the simulator
 
 ## 11. Phase 8 - Rule-Based Strategy
@@ -554,14 +592,13 @@ Instead of automatic percentile trimming:
 ### Status
 - Completed
 
-### Planned Scope
-- Compare `base_predicted_demand` (predicted demand at `base_price`) against `rolling7_mean_units`
+### Implemented Scope
+- Compare predicted demand at `base_price` against `rolling7_mean_units`
 - Increase target price by `RULE_PRICE_INCREASE` when base predicted demand is above rolling mean
 - Decrease target price by `RULE_PRICE_DECREASE` when base predicted demand is below rolling mean
 - Keep no-change (`target_price = base_price`) when values are equal
-- Clamp target price to `[base_price * (1 - RULE_PRICE_CLAMP), base_price * (1 + RULE_PRICE_CLAMP)]`
 - Select final `chosen_price` from the Phase 7 candidate grid using deterministic tie-break:
-  1. smallest distance to clamped target price
+  1. smallest distance to target price
   2. smallest distance to base price
   3. lower candidate price
 
@@ -576,7 +613,7 @@ Instead of automatic percentile trimming:
      - `results/simulation/rule_results.parquet`
 
 ### Phase Handoff Contract
-- Consumes Phase 7 candidate tables and emits chosen-price simulation results for Phase 11 evaluation
+- Consumes Phase 7 candidate tables and approved simulator context (`base_price`, `row`, `strategy_name`) and emits chosen-price simulation results for Phase 11 evaluation
 
 ## 12. Phase 9 - Machine Learning Strategy
 
@@ -630,7 +667,7 @@ Instead of automatic percentile trimming:
 ### Planned Scope
 - Start with ML-optimal price
 - Apply +/-3% daily clamp
-- Optional smoothing
+- Apply exponential smoothing using `HYBRID_SMOOTHING_ALPHA` to stabilize price transitions
 
 ### Frozen Results
 - Pending phase completion; frozen outputs and run summary will be added after Phase 10 execution is finalized
@@ -781,11 +818,14 @@ Instead of automatic percentile trimming:
 - Consumes the Phase 14 frozen package and certifies end-to-end reproducibility status
 
 ## Current Implementation Note
-- As of March 8, 2026, executable implementation coverage is Phases 1-7
+- As of March 8, 2026, executable implementation coverage is Phases 1-8
 - Latest completed workflow run: `python main.py --workflow full` (Phases 1-6)
-- Latest completed strategy-specific simulation run: `python main.py --simulate ml` (Phase 7)
+- Latest simulation runs by strategy:
+  - `rule` -> 2026-03-08
+  - `ml` -> 2026-03-08
+  - `hybrid` -> 2026-03-08
 - Explicit multi-strategy simulation mode: `python main.py --simulate all`
-- Phases 8-15 remain planned and will be added incrementally
+- Phases 9-15 remain planned and will be added incrementally
 
 ## Final Frozen Design Decisions
 - Dataset restricted to 2010-2011 only

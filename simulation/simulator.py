@@ -90,14 +90,19 @@ def _build_simulation_outputs(test_df: pd.DataFrame, model, strategy_name: str) 
 
     for _, row in test_df.iterrows():
         candidates_df = _build_candidates_for_row(row, model)
+        validate_phase7_candidates(candidates_df[PHASE7_CANDIDATE_FROZEN_COLUMNS])
 
         context = {
             "base_price": float(row["avg_daily_price"]),
-            "max_daily_change": None,
-            "hybrid_smoothing_alpha": None,
-            "strategy_name": strategy_name,
             "row": row,
+            "strategy_name": strategy_name,
         }
+        required_context_keys = {"base_price", "row", "strategy_name"}
+        if set(context.keys()) != required_context_keys:
+            raise ValueError(
+                "Strategy context validation failed: expected keys "
+                f"{sorted(required_context_keys)}, got {sorted(context.keys())}."
+            )
         chosen_price = float(selector(candidates_df.copy(), context))
 
         chosen_rows = candidates_df[candidates_df["candidate_price"] == chosen_price]
