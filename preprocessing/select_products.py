@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 import sys
@@ -16,11 +17,11 @@ from config import (
     COL_PRICE,
     COL_QUANTITY,
     COL_STOCK_CODE,
-    DOCS_PATH,
     MIN_ACTIVE_DAYS,
     MIN_PRICE_STD,
     PHASE3_REPORT_FILE,
     PROJECT_ROOT,
+    REPORTS_PATH,
     SELECTED_PRODUCTS_PATH,
     SELECTED_PRODUCT_COUNT,
 )
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 CONFIGURED_ROOT_PATH = configured_root(PROJECT_ROOT)
 INPUT_PATH = CONFIGURED_ROOT_PATH / CLEAN_DATA_PATH
-REPORT_PATH = CONFIGURED_ROOT_PATH / DOCS_PATH / PHASE3_REPORT_FILE
+REPORT_PATH = CONFIGURED_ROOT_PATH / REPORTS_PATH / PHASE3_REPORT_FILE
 SELECTED_PRODUCTS_OUTPUT_PATH = CONFIGURED_ROOT_PATH / SELECTED_PRODUCTS_PATH
 
 
@@ -64,30 +65,22 @@ def _build_description_map(df: pd.DataFrame) -> pd.Series:
     return non_empty.groupby(COL_STOCK_CODE)[COL_DESCRIPTION].agg(lambda s: s.mode().iloc[0])
 
 
-def _format_currency(value: float) -> str:
-    return f"GBP {value:,.2f}"
-
-
-def _format_float(value: float) -> str:
-    return f"{value:.4f}"
-
-
-def _build_report(selected: pd.DataFrame) -> str:
-    lines = ["# Product Selection", ""]
-    if selected.empty:
-        lines.append("No products satisfied Phase 3 filters.")
-        return "\n".join(lines)
-
-    for rank, row in enumerate(selected.itertuples(index=False), start=1):
-        lines.append(
-            (
-                f"{rank}. {getattr(row, COL_STOCK_CODE)} - {getattr(row, COL_DESCRIPTION)} "
-                f"(Revenue: {_format_currency(getattr(row, 'revenue'))}, "
-                f"PriceStd: {_format_float(getattr(row, 'price_std'))}, "
-                f"ActiveDays: {int(getattr(row, 'active_days'))})"
-            )
-        )
-    return "\n".join(lines)
+def _build_report_payload(metrics: pd.DataFrame, eligible: pd.DataFrame, selected: pd.DataFrame) -> dict[str, object]:
+    return {
+        "phase": 3,
+        "name": "product_selection",
+        "selection_parameters": {
+            "min_price_std": float(MIN_PRICE_STD),
+            "min_active_days": int(MIN_ACTIVE_DAYS),
+            "selected_product_count": int(SELECTED_PRODUCT_COUNT),
+        },
+        "run_summary": {
+            "products_analyzed": int(len(metrics)),
+            "eligible_products": int(len(eligible)),
+            "selected_products": int(len(selected)),
+        },
+        "selected_products": selected.to_dict(orient="records"),
+    }
 
 
 def run_phase3() -> None:
@@ -153,7 +146,8 @@ def run_phase3() -> None:
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     SELECTED_PRODUCTS_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     selected.to_parquet(SELECTED_PRODUCTS_OUTPUT_PATH, index=False)
-    REPORT_PATH.write_text(_build_report(selected), encoding="utf-8")
+    report_payload = _build_report_payload(metrics, eligible, selected)
+    REPORT_PATH.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
     logger.info(
         "Phase 3 product selection completed. Saved report to %s and selected products to %s",
         REPORT_PATH,

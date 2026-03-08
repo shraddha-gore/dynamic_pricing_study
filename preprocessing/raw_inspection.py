@@ -1,3 +1,4 @@
+import json
 import logging
 from pathlib import Path
 import sys
@@ -10,7 +11,6 @@ if str(PROJECT_ROOT_PATH) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT_PATH))
 
 from config import (
-    DOCS_PATH,
     INVOICE_CANCELLATION_PREFIX,
     PHASE1_REPORT_FILE,
     PROJECT_ROOT,
@@ -22,31 +22,21 @@ from config import (
     RAW_DATA_FILE,
     RAW_INSPECTION_PERCENTILES,
     RAW_DATA_PATH,
+    REPORTS_PATH,
 )
 
 CONFIGURED_ROOT_PATH = Path(PROJECT_ROOT).resolve()
 CSV_PATH = CONFIGURED_ROOT_PATH / RAW_DATA_PATH / RAW_DATA_FILE
-REPORT_PATH = CONFIGURED_ROOT_PATH / DOCS_PATH / PHASE1_REPORT_FILE
+REPORT_PATH = CONFIGURED_ROOT_PATH / REPORTS_PATH / PHASE1_REPORT_FILE
 logger = logging.getLogger(__name__)
 
 
-def dataframe_to_markdown(df: pd.DataFrame, max_rows: int | None = None) -> str:
+def _records(df: pd.DataFrame, max_rows: int | None = None) -> list[dict[str, object]]:
     view = df.head(max_rows) if max_rows else df
-    if view.empty:
-        return "_No rows_"
-
-    headers = [str(col) for col in view.columns]
-    lines = [
-        "| " + " | ".join(headers) + " |",
-        "| " + " | ".join(["---"] * len(headers)) + " |",
-    ]
-    for _, row in view.iterrows():
-        cells = [str(row[col]) for col in view.columns]
-        lines.append("| " + " | ".join(cells) + " |")
-    return "\n".join(lines)
+    return view.to_dict(orient="records")
 
 
-def build_report(df: pd.DataFrame) -> str:
+def build_report_payload(df: pd.DataFrame) -> dict[str, object]:
     shape_rows, shape_cols = df.shape
 
     column_types = pd.DataFrame(
@@ -132,55 +122,33 @@ def build_report(df: pd.DataFrame) -> str:
         else:
             date_range_text = f"Unable to parse valid dates. Unparseable rows: {missing_dates:,}"
 
-    report_lines = [
-        "# Raw Data Inspection Report",
-        "",
-        "## Source",
-        f"- File: `{CSV_PATH}`",
-        "- Phase: 1 (Raw Data Inspection)",
-        "",
-        "## Dataset Shape",
-        f"- Rows: {shape_rows:,}",
-        f"- Columns: {shape_cols:,}",
-        "",
-        "## Columns and Data Types",
-        dataframe_to_markdown(column_types),
-        "",
-        "## Null Count and Percentage",
-        dataframe_to_markdown(null_summary),
-        "",
-        "## Cancellation Invoices",
-        f"- Rows with `Invoice` starting with `C`: {cancellations:,} ({cancellation_pct:.2f}%)",
-        "",
-        "## Quantity Distribution",
-        dataframe_to_markdown(quantity_stats),
-        "",
-        "### Quantity Quality Flags",
-        dataframe_to_markdown(quantity_quality),
-        "",
-        "## Price Distribution",
-        dataframe_to_markdown(price_stats),
-        "",
-        "### Price Quality Flags",
-        dataframe_to_markdown(price_quality),
-        "",
-        "## Country Distribution (Rows)",
-        dataframe_to_markdown(country_distribution, max_rows=20),
-        "",
-        "## Revenue per Country (Raw)",
-        dataframe_to_markdown(revenue_country, max_rows=20),
-        "",
-        "## Date Range Validation",
-        f"- {date_range_text}",
-        "",
-        "## Frozen Decisions for Next Phase",
-        "- Keep UK only",
-        "- Remove cancelled invoices",
-        "- Remove negative quantities",
-        "- Remove zero or negative prices",
-        "- Temporal boundary already fixed at source (2010–2011 only)",
-    ]
-    return "\n".join(report_lines)
+    return {
+        "phase": 1,
+        "name": "raw_data_inspection",
+        "source_file": str(CSV_PATH),
+        "dataset_shape": {"rows": int(shape_rows), "columns": int(shape_cols)},
+        "column_types": _records(column_types),
+        "null_summary": _records(null_summary),
+        "cancellation_summary": {
+            "invoice_prefix": INVOICE_CANCELLATION_PREFIX,
+            "cancellation_rows": int(cancellations),
+            "cancellation_percent": round(float(cancellation_pct), 4),
+        },
+        "quantity_distribution": _records(quantity_stats),
+        "quantity_quality_flags": _records(quantity_quality),
+        "price_distribution": _records(price_stats),
+        "price_quality_flags": _records(price_quality),
+        "country_distribution_top20": _records(country_distribution, max_rows=20),
+        "revenue_by_country_top20": _records(revenue_country, max_rows=20),
+        "date_range_validation": date_range_text,
+        "frozen_decisions_for_next_phase": [
+            "Keep UK only",
+            "Remove cancelled invoices",
+            "Remove negative quantities",
+            "Remove zero or negative prices",
+            "Temporal boundary already fixed at source (2010-2011 only)",
+        ],
+    }
 
 
 def run_phase1() -> None:
@@ -192,8 +160,8 @@ def run_phase1() -> None:
 
     df = pd.read_csv(CSV_PATH)
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    report = build_report(df)
-    REPORT_PATH.write_text(report, encoding="utf-8")
+    report_payload = build_report_payload(df)
+    REPORT_PATH.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
     logger.info("Phase 1 raw inspection completed. Report saved to %s", REPORT_PATH)
 
 

@@ -2,10 +2,6 @@ import pandas as pd
 
 from config import (
     COL_COUNTRY,
-    COL_CUSTOMER_ID,
-    COL_DESCRIPTION,
-    COL_INVOICE,
-    COL_INVOICE_DATE,
     COL_PRICE,
     COL_QUANTITY,
     COL_STOCK_CODE,
@@ -14,6 +10,8 @@ from config import (
     PHASE4_FROZEN_COLUMNS,
     PHASE5_FROZEN_COLUMNS,
     PHASE5_FROZEN_FEATURE_COLUMNS,
+    PHASE7_CANDIDATE_FROZEN_COLUMNS,
+    PHASE7_RESULT_FROZEN_COLUMNS,
     PRICE_OUTLIER_THRESHOLD,
     SELECTED_PRODUCT_COUNT,
     TARGET_COUNTRY,
@@ -115,3 +113,43 @@ def validate_phase5_features(df: pd.DataFrame, split_name: str) -> None:
         raise ValueError(
             f"Phase 5 {split_name} feature validation failed: missing frozen feature columns: {missing_frozen_features}"
         )
+
+
+def validate_phase7_candidates(df: pd.DataFrame) -> None:
+    ensure_required_columns(df, PHASE7_CANDIDATE_FROZEN_COLUMNS, "Phase 7 candidate simulation dataset")
+    _validate_exact_columns(df, PHASE7_CANDIDATE_FROZEN_COLUMNS, "Phase 7 candidate simulation dataset")
+
+    if df.empty:
+        raise ValueError("Phase 7 candidate simulation validation failed: dataset is empty.")
+    if df["invoice_day"].isna().any():
+        raise ValueError("Phase 7 candidate simulation validation failed: null invoice_day found.")
+    if df[COL_STOCK_CODE].isna().any():
+        raise ValueError("Phase 7 candidate simulation validation failed: null stock_code found.")
+    if (df["candidate_price"] <= 0).any():
+        raise ValueError("Phase 7 candidate simulation validation failed: non-positive candidate price found.")
+    if (df["predicted_demand"] < 0).any():
+        raise ValueError("Phase 7 candidate simulation validation failed: negative predicted demand found.")
+    if (df["predicted_revenue"] < 0).any():
+        raise ValueError("Phase 7 candidate simulation validation failed: negative predicted revenue found.")
+    if (df["candidate_rank_by_revenue"] < 1).any():
+        raise ValueError("Phase 7 candidate simulation validation failed: invalid candidate rank found.")
+
+
+def validate_phase7_results(df: pd.DataFrame) -> None:
+    ensure_required_columns(df, PHASE7_RESULT_FROZEN_COLUMNS, "Phase 7 simulation outcome dataset")
+    _validate_exact_columns(df, PHASE7_RESULT_FROZEN_COLUMNS, "Phase 7 simulation outcome dataset")
+
+    if df.empty:
+        raise ValueError("Phase 7 simulation outcome validation failed: dataset is empty.")
+    if df["invoice_day"].isna().any():
+        raise ValueError("Phase 7 simulation outcome validation failed: null invoice_day found.")
+    if df[COL_STOCK_CODE].isna().any():
+        raise ValueError("Phase 7 simulation outcome validation failed: null stock_code found.")
+    if (df["base_price"] <= 0).any():
+        raise ValueError("Phase 7 simulation outcome validation failed: non-positive base price found.")
+    if (df["chosen_price"] <= 0).any():
+        raise ValueError("Phase 7 simulation outcome validation failed: non-positive chosen price found.")
+    if (df["predicted_demand"] < 0).any():
+        raise ValueError("Phase 7 simulation outcome validation failed: negative predicted demand found.")
+    if (df["predicted_revenue"] < 0).any():
+        raise ValueError("Phase 7 simulation outcome validation failed: negative predicted revenue found.")

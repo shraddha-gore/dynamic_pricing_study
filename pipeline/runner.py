@@ -4,6 +4,7 @@ from preprocessing.clean_data import run_phase2
 from preprocessing.feature_engineering import run_phase5
 from preprocessing.raw_inspection import run_phase1
 from preprocessing.select_products import run_phase3
+from simulation.simulator import run_phase7
 
 PHASE_MAP = {
     1: run_phase1,
@@ -12,6 +13,7 @@ PHASE_MAP = {
     4: run_phase4,
     5: run_phase5,
     6: run_phase6,
+    7: run_phase7,
 }
 
 def run_phase(phase: int) -> None:

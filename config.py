@@ -11,7 +11,6 @@ RAW_DATA_PATH = "data/raw/"
 RAW_DATA_FILE = "online_retail_II_2010_2011.csv"
 PROCESSED_DATA_PATH = "data/processed/"
 RESULTS_PATH = "results/"
-DOCS_PATH = "docs/"
 LOGS_PATH = "logs/"
 
 
@@ -33,21 +32,28 @@ FEATURE_TEST_DATA_PATH = "data/processed/feature_test_data.parquet"
 
 # Phase 6
 PHASE6_MODEL_ARTIFACT_PATH = "models/artifacts/demand_model.joblib"
-PHASE6_METRICS_PATH = "results/demand_model_metrics.json"
+PHASE6_METRICS_PATH = "results/metrics/demand_model_metrics.json"
 
 
 # -----------------------------
-# Phase output files (docs/logs)
+# Phase output files (reports/logs)
 # -----------------------------
-PHASE1_REPORT_FILE = "raw_data_report.md"
+PHASE1_REPORT_FILE = "phase1_raw_data_report.json"
 PHASE1_LOG_FILE = "phase1.log"
 PHASE2_LOG_FILE = "phase2.log"
-PHASE3_REPORT_FILE = "product_selection.md"
+PHASE3_REPORT_FILE = "phase3_product_selection_report.json"
 PHASE3_LOG_FILE = "phase3.log"
 PHASE4_LOG_FILE = "phase4.log"
 PHASE5_LOG_FILE = "phase5.log"
 PHASE6_LOG_FILE = "phase6.log"
+PHASE7_LOG_FILE = "phase7.log"
 EXPERIMENT_LOG_FILE = "experiment.log"
+
+
+# -----------------------------
+# Report artifact paths
+# -----------------------------
+REPORTS_PATH = "results/reports/"
 
 
 # -----------------------------
@@ -215,3 +221,39 @@ PHASE5_FROZEN_FEATURE_COLUMNS = [
 # -----------------------------
 PHASE6_FEATURE_COLUMNS = PHASE5_FROZEN_FEATURE_COLUMNS
 PHASE6_TARGET_COLUMN = "daily_units"
+
+
+# -----------------------------
+# Phase 7 constants
+# -----------------------------
+PHASE7_DEFAULT_STRATEGY = "ml"
+PHASE7_STRATEGIES = ("rule", "ml", "hybrid")
+PHASE7_GRID_POINTS = 5
+SIMULATION_OUTPUT_PATH = "results/simulation/"
+SIMULATION_CANDIDATE_PATHS = {
+    "rule": "results/simulation/rule_candidates.parquet",
+    "ml": "results/simulation/ml_candidates.parquet",
+    "hybrid": "results/simulation/hybrid_candidates.parquet",
+}
+SIMULATION_RESULTS_PATHS = {
+    "rule": "results/simulation/rule_results.parquet",
+    "ml": "results/simulation/ml_results.parquet",
+    "hybrid": "results/simulation/hybrid_results.parquet",
+}
+PHASE7_CANDIDATE_FROZEN_COLUMNS = [
+    "invoice_day",
+    COL_STOCK_CODE,
+    "candidate_price",
+    "predicted_demand",
+    "predicted_revenue",
+    "candidate_rank_by_revenue",
+]
+PHASE7_RESULT_FROZEN_COLUMNS = [
+    "invoice_day",
+    COL_STOCK_CODE,
+    "base_price",
+    "chosen_price",
+    "predicted_demand",
+    "predicted_revenue",
+    "strategy_name",
+]
