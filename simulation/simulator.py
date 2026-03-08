@@ -18,7 +18,6 @@ from config import (
     PHASE6_FEATURE_COLUMNS,
     PHASE6_MODEL_ARTIFACT_PATH,
     PHASE7_CANDIDATE_FROZEN_COLUMNS,
-    PHASE7_DEFAULT_STRATEGY,
     PHASE7_GRID_POINTS,
     PHASE7_RESULT_FROZEN_COLUMNS,
     PHASE7_STRATEGIES,
@@ -128,7 +127,7 @@ def _build_simulation_outputs(test_df: pd.DataFrame, model, strategy_name: str) 
     return candidates_output, results_output
 
 
-def run_phase7(strategy_name: str = PHASE7_DEFAULT_STRATEGY) -> None:
+def run_phase7(strategy_name: str) -> None:
     if strategy_name not in PHASE7_STRATEGIES:
         raise ValueError(f"Unsupported strategy for Phase 7 simulation: {strategy_name}")
 
@@ -176,4 +175,4 @@ def run_phase7(strategy_name: str = PHASE7_DEFAULT_STRATEGY) -> None:
 
 
 if __name__ == "__main__":
-    run_phase7()
+    raise SystemExit("Phase 7 requires an explicit strategy. Use main.py --simulate {rule|ml|hybrid}.")

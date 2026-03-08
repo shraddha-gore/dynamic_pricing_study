@@ -52,6 +52,8 @@ Data -> Inspection -> Cleaning -> Product Selection -> Aggregation -> Feature En
 - No hardcoded paths or column names
 - Train demand model once (Phase 6)
 - Simulation uses predicted demand only
+- Full workflow (`python main.py --workflow full`) runs Phases 1-6 only
+- Phase 7 requires explicit simulation mode: `python main.py --simulate {rule|ml|hybrid|all}`
 
 ## Implementation Best Practices (All Phases)
 
@@ -120,7 +122,7 @@ Centralize in `config.py`:
 - Phase 4 paths: `DAILY_AGG_DATA_PATH`, `SELECTED_PRODUCTS_PATH`
 - Phase 5 paths: `FEATURE_TRAIN_DATA_PATH`, `FEATURE_TEST_DATA_PATH`
 - Phase 6 paths: `PHASE6_MODEL_ARTIFACT_PATH`, `PHASE6_METRICS_PATH`
-- Phase 7 params: `PHASE7_GRID_POINTS`, `PHASE7_DEFAULT_STRATEGY`, `PHASE7_STRATEGIES`
+- Phase 7 params: `PHASE7_GRID_POINTS`, `PHASE7_STRATEGIES`
 - Phase 7 paths: `SIMULATION_CANDIDATE_PATHS`, `SIMULATION_RESULTS_PATHS`
 - Phase 7 frozen schemas: `PHASE7_CANDIDATE_FROZEN_COLUMNS`, `PHASE7_RESULT_FROZEN_COLUMNS`
 
@@ -515,11 +517,13 @@ Instead of automatic percentile trimming:
 - Persist both candidate-level outputs and chosen-price result outputs as Parquet files
 - Validate output schemas using `PHASE7_CANDIDATE_FROZEN_COLUMNS` and `PHASE7_RESULT_FROZEN_COLUMNS`
 - Execute one strategy per run, for example: `python main.py --simulate rule`
+- Execute all strategies explicitly: `python main.py --simulate all`
+- No implicit default strategy is used; `--simulate` must be explicitly set to `rule`, `ml`, `hybrid`, or `all`
 
 ### Frozen Results
 - Candidate schema: `invoice_day`, `stock_code`, `candidate_price`, `predicted_demand`, `predicted_revenue`, `candidate_rank_by_revenue`
 - Result schema: `invoice_day`, `stock_code`, `base_price`, `chosen_price`, `predicted_demand`, `predicted_revenue`, `strategy_name`
-- Latest run summary (per strategy):
+- Latest run summary (`ml` strategy run):
   1. Test rows: 266
   2. Candidate rows: 1,330
   3. Result rows: 266
@@ -765,7 +769,8 @@ Instead of automatic percentile trimming:
 ## Current Implementation Note
 - As of March 8, 2026, executable implementation coverage is Phases 1-7
 - Latest completed workflow run: `python main.py --workflow full` (Phases 1-6)
-- Latest completed simulation run: `python main.py --simulate ml` (Phase 7)
+- Latest completed strategy-specific simulation run: `python main.py --simulate ml` (Phase 7)
+- Explicit multi-strategy simulation mode: `python main.py --simulate all`
 - Phases 8-15 remain planned and will be added incrementally
 
 ## Final Frozen Design Decisions

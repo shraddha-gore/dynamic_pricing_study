@@ -226,7 +226,6 @@ PHASE6_TARGET_COLUMN = "daily_units"
 # -----------------------------
 # Phase 7 constants
 # -----------------------------
-PHASE7_DEFAULT_STRATEGY = "ml"
 PHASE7_STRATEGIES = ("rule", "ml", "hybrid")
 PHASE7_GRID_POINTS = 5
 SIMULATION_OUTPUT_PATH = "results/simulation/"

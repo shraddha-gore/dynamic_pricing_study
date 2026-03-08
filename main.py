@@ -23,15 +23,15 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--simulate",
-        choices=PHASE7_STRATEGIES,
-        help="Run Phase 7 simulation for a single strategy (rule|ml|hybrid)",
+        choices=[*PHASE7_STRATEGIES, "all"],
+        help="Run Phase 7 simulation for one strategy (rule|ml|hybrid) or all strategies (all)",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    if args.simulate is not None:
+    if args.simulate is not None and args.simulate != "all":
         configure_logging(phases=[7])
         logging.info("Dynamic Pricing Study runner initialised for simulation strategy %s.", args.simulate)
         try:
@@ -41,6 +41,19 @@ def main() -> None:
             raise
         logging.info("Simulation completed successfully for strategy %s.", args.simulate)
         print(f"Simulation for strategy '{args.simulate}' completed successfully.")
+        return
+
+    if args.simulate == "all":
+        configure_logging(phases=[7])
+        logging.info("Dynamic Pricing Study runner initialised for all simulation strategies.")
+        for strategy in PHASE7_STRATEGIES:
+            try:
+                run_phase7(strategy_name=strategy)
+            except Exception:
+                logging.exception("Simulation failed for strategy %s.", strategy)
+                raise
+        logging.info("Simulation completed successfully for all strategies.")
+        print("Simulation for all strategies completed successfully.")
         return
 
     if args.phase is not None:
