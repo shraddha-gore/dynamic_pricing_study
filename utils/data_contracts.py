@@ -149,6 +149,16 @@ def validate_phase7_results(df: pd.DataFrame) -> None:
         raise ValueError("Phase 7 simulation outcome validation failed: non-positive base price found.")
     if (df["chosen_price"] <= 0).any():
         raise ValueError("Phase 7 simulation outcome validation failed: non-positive chosen price found.")
+    if (df["previous_price"] <= 0).any():
+        raise ValueError("Phase 7 simulation outcome validation failed: non-positive previous price found.")
+    if not ((df["chosen_price"] - df["previous_price"]).round(12) == df["price_change"].round(12)).all():
+        raise ValueError(
+            "Phase 7 simulation outcome validation failed: price_change does not match chosen_price - previous_price."
+        )
+    if not ((df["price_change"].abs()).round(12) == df["abs_price_change"].round(12)).all():
+        raise ValueError("Phase 7 simulation outcome validation failed: abs_price_change mismatch found.")
+    if (df["abs_price_change"] < 0).any():
+        raise ValueError("Phase 7 simulation outcome validation failed: negative abs_price_change found.")
     if (df["predicted_demand"] < 0).any():
         raise ValueError("Phase 7 simulation outcome validation failed: negative predicted demand found.")
     if (df["predicted_revenue"] < 0).any():

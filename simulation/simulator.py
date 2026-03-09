@@ -87,17 +87,21 @@ def _build_simulation_outputs(test_df: pd.DataFrame, model, strategy_name: str) 
 
     all_candidates: list[pd.DataFrame] = []
     all_results: list[dict[str, object]] = []
+    previous_price_by_product: dict[str, float] = {}
 
     for _, row in test_df.iterrows():
         candidates_df = _build_candidates_for_row(row, model)
         validate_phase7_candidates(candidates_df[PHASE7_CANDIDATE_FROZEN_COLUMNS])
 
-        context = {
-            "base_price": float(row["avg_daily_price"]),
-            "row": row,
-            "strategy_name": strategy_name,
-        }
-        required_context_keys = {"base_price", "row", "strategy_name"}
+        base_price = float(row["avg_daily_price"])
+        stock_code = str(row[COL_STOCK_CODE])
+        previous_price = previous_price_by_product.get(stock_code, base_price)
+        context = {"base_price": base_price, "row": row, "strategy_name": strategy_name}
+        if strategy_name == "hybrid":
+            context["previous_price"] = previous_price
+        required_context_keys = {"base_price", "row", "strategy_name"} | (
+            {"previous_price"} if strategy_name == "hybrid" else set()
+        )
         if set(context.keys()) != required_context_keys:
             raise ValueError(
                 "Strategy context validation failed: expected keys "
@@ -113,13 +117,19 @@ def _build_simulation_outputs(test_df: pd.DataFrame, model, strategy_name: str) 
         else:
             chosen_row = chosen_rows.iloc[0]
 
+        price_change = chosen_price - previous_price
+        previous_price_by_product[stock_code] = chosen_price
+
         all_candidates.append(candidates_df)
         all_results.append(
             {
                 "invoice_day": row["invoice_day"],
-                COL_STOCK_CODE: row[COL_STOCK_CODE],
-                "base_price": float(row["avg_daily_price"]),
+                COL_STOCK_CODE: stock_code,
+                "base_price": base_price,
+                "previous_price": previous_price,
                 "chosen_price": chosen_price,
+                "price_change": price_change,
+                "abs_price_change": abs(price_change),
                 "predicted_demand": float(chosen_row["predicted_demand"]),
                 "predicted_revenue": float(chosen_row["predicted_revenue"]),
                 "strategy_name": strategy_name,
