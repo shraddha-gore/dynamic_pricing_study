@@ -792,9 +792,20 @@ Instead of automatic percentile trimming:
 
 ### Planned Scope
 - Revenue metrics: total, mean daily
+- Revenue metrics will be computed from simulator outputs using `daily_revenue = chosen_price * predicted_demand`
 - Stability metrics: mean absolute change, std dev, max jump, change frequency
 - Stability metrics will be computed from simulator-produced `price_change` and `abs_price_change` columns
-- Statistical comparisons: Hybrid vs ML, Hybrid vs Rule
+- Stability metric definitions:
+  - `mean_absolute_change = mean(abs_price_change)`
+  - `price_std = std(chosen_price)`
+  - `max_price_jump = max(abs_price_change)`
+  - `change_frequency = count(price_change != 0) / total_observations`
+- Statistical comparisons:
+  - Paired tests are applied on aligned (`stock_code`, `invoice_day`) observations across strategies
+  - Hybrid vs ML: paired tests
+  - Hybrid vs Rule: paired tests
+  - Primary test: paired t-test on daily revenue differences and absolute price-change differences
+  - Optional robustness test: Wilcoxon signed-rank test
 
 ### Frozen Results
 - Pending phase completion; metric tables and test outputs will be frozen after Phase 11 execution is finalized
@@ -823,7 +834,14 @@ Instead of automatic percentile trimming:
 ### Planned Scope
 - Visualization only
 - No model training in dashboard runtime
+- Dashboard is strictly read-only and loads precomputed Phase 11 outputs
+- No simulations or model predictions are executed in dashboard runtime
 - Compare strategy trajectories and KPI summaries for revenue and stability
+- Include core views:
+  - strategy revenue comparison
+  - price trajectory comparison
+  - price volatility comparison
+  - daily revenue distribution
 
 ### Frozen Results
 - Pending phase completion; dashboard views and snapshot outputs will be frozen after Phase 12 execution is finalized
@@ -844,7 +862,8 @@ Instead of automatic percentile trimming:
 - TBD
 
 ### Outputs
-- `results/robustness/robustness_tests.json`
+- `results/robustness/robustness_results.parquet`
+- `results/robustness/robustness_summary.json`
 
 ### Status
 - Planned
@@ -852,7 +871,11 @@ Instead of automatic percentile trimming:
 ### Planned Scope
 - Clamp sensitivity
 - Smoothing alpha sensitivity
-- Train/test split sensitivity
+- Candidate grid sensitivity
+- Parameter sweep specification:
+  - `MAX_DAILY_CHANGE`: `0.01`, `0.03`, `0.05`
+  - `HYBRID_SMOOTHING_ALPHA`: `0.3`, `0.5`, `0.7`
+  - `PRICE_GRID_PERCENTAGE`: `0.05`, `0.10`, `0.15`
 
 ### Frozen Results
 - Pending phase completion; sensitivity-run outputs and conclusion deltas will be frozen after Phase 13 execution is finalized
@@ -878,7 +901,16 @@ Instead of automatic percentile trimming:
 - Planned
 
 ### Planned Scope
-- Freeze parameters, logs, versions, and technical docs
+- Freeze reproducibility-critical artifacts:
+  - `implementation.md`
+  - `config.py`
+  - `requirements.txt`
+  - `results/`
+  - `models/artifacts/`
+- Record reproducibility metadata:
+  - git commit hash
+  - Python version
+  - package versions
 
 ### Frozen Results
 - Pending phase completion; reproducibility-critical documents and metadata manifests will be frozen after Phase 14 execution is finalized
@@ -906,7 +938,11 @@ Instead of automatic percentile trimming:
 ### Planned Scope
 - Recreate environment
 - Re-run full pipeline
-- Verify identical outputs
+- Reproducibility acceptance criteria:
+  - output schemas match frozen contracts
+  - row counts match frozen summaries
+  - aggregate revenue metrics match baseline values
+  - strategy result files reproduce identical evaluation metrics
 
 ### Frozen Results
 - Pending phase completion; reproducibility verification report and final checksum evidence will be frozen after Phase 15 execution is finalized
