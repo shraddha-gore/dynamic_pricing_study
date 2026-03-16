@@ -1,5 +1,6 @@
 import argparse
 import logging
+from collections.abc import Callable
 
 from config import PHASE7_STRATEGIES
 from utils.logging_config import configure_logging
@@ -39,80 +40,119 @@ def run_phase11_evaluation() -> None:
     run_tests()
 
 
+def _run_logged(
+    *,
+    phases: list[int],
+    init_message: str,
+    failure_message: str,
+    success_message: str,
+    success_output: str,
+    runner: Callable[[], None],
+) -> None:
+    configure_logging(phases=phases)
+    logging.info(init_message)
+    try:
+        runner()
+    except Exception:
+        logging.exception(failure_message)
+        raise
+    logging.info(success_message)
+    print(success_output)
+
+
+def _handle_evaluation() -> None:
+    _run_logged(
+        phases=[11],
+        init_message="Dynamic Pricing Study runner initialised for Phase 11 evaluation.",
+        failure_message="Phase 11 evaluation failed.",
+        success_message="Phase 11 evaluation completed successfully.",
+        success_output="Phase 11 evaluation completed successfully.",
+        runner=run_phase11_evaluation,
+    )
+
+
+def _handle_single_strategy_simulation(strategy_name: str) -> None:
+    from simulation.simulator import run_phase7
+
+    _run_logged(
+        phases=[7],
+        init_message=f"Dynamic Pricing Study runner initialised for simulation strategy {strategy_name}.",
+        failure_message=f"Simulation failed for strategy {strategy_name}.",
+        success_message=f"Simulation completed successfully for strategy {strategy_name}.",
+        success_output=f"Simulation for strategy '{strategy_name}' completed successfully.",
+        runner=lambda: run_phase7(strategy_name=strategy_name),
+    )
+
+
+def _handle_all_strategy_simulations() -> None:
+    from simulation.simulator import run_phase7
+
+    def run_all_simulations() -> None:
+        for strategy_name in PHASE7_STRATEGIES:
+            try:
+                run_phase7(strategy_name=strategy_name)
+            except Exception as exc:
+                raise RuntimeError(f"Simulation failed for strategy {strategy_name}.") from exc
+
+    _run_logged(
+        phases=[7],
+        init_message="Dynamic Pricing Study runner initialised for all simulation strategies.",
+        failure_message="Simulation run failed while executing all strategies.",
+        success_message="Simulation completed successfully for all strategies.",
+        success_output="Simulation for all strategies completed successfully.",
+        runner=run_all_simulations,
+    )
+
+
+def _handle_phase_run(phase_number: int) -> None:
+    from pipeline.runner import available_phases, run_phase
+
+    if phase_number not in available_phases():
+        raise ValueError(f"Unsupported phase: {phase_number}")
+
+    _run_logged(
+        phases=[phase_number],
+        init_message=f"Dynamic Pricing Study runner initialised for phase {phase_number}.",
+        failure_message=f"Phase {phase_number} failed.",
+        success_message=f"Phase {phase_number} completed successfully.",
+        success_output=f"Phase {phase_number} completed successfully.",
+        runner=lambda: run_phase(phase_number),
+    )
+
+
+def _handle_full_workflow() -> None:
+    from pipeline.runner import run_workflow
+    from pipeline.runner import available_phases
+
+    _run_logged(
+        phases=available_phases(),
+        init_message="Dynamic Pricing Study runner initialised for full workflow.",
+        failure_message="Full workflow failed.",
+        success_message="Full workflow completed successfully.",
+        success_output="Full workflow completed successfully.",
+        runner=run_workflow,
+    )
+
+
 def main() -> None:
     args = parse_args()
     if args.evaluate:
-        configure_logging(phases=[11])
-        logging.info("Dynamic Pricing Study runner initialised for Phase 11 evaluation.")
-        try:
-            run_phase11_evaluation()
-        except Exception:
-            logging.exception("Phase 11 evaluation failed.")
-            raise
-        logging.info("Phase 11 evaluation completed successfully.")
-        print("Phase 11 evaluation completed successfully.")
+        _handle_evaluation()
         return
 
     if args.simulate is not None and args.simulate != "all":
-        from simulation.simulator import run_phase7
-
-        configure_logging(phases=[7])
-        logging.info("Dynamic Pricing Study runner initialised for simulation strategy %s.", args.simulate)
-        try:
-            run_phase7(strategy_name=args.simulate)
-        except Exception:
-            logging.exception("Simulation failed for strategy %s.", args.simulate)
-            raise
-        logging.info("Simulation completed successfully for strategy %s.", args.simulate)
-        print(f"Simulation for strategy '{args.simulate}' completed successfully.")
+        _handle_single_strategy_simulation(args.simulate)
         return
 
     if args.simulate == "all":
-        from simulation.simulator import run_phase7
-
-        configure_logging(phases=[7])
-        logging.info("Dynamic Pricing Study runner initialised for all simulation strategies.")
-        for strategy in PHASE7_STRATEGIES:
-            try:
-                run_phase7(strategy_name=strategy)
-            except Exception:
-                logging.exception("Simulation failed for strategy %s.", strategy)
-                raise
-        logging.info("Simulation completed successfully for all strategies.")
-        print("Simulation for all strategies completed successfully.")
+        _handle_all_strategy_simulations()
         return
 
     if args.phase is not None:
-        from pipeline.runner import available_phases, run_phase
-
-        if args.phase not in available_phases():
-            raise ValueError(f"Unsupported phase: {args.phase}")
-
-        configure_logging(phases=[args.phase])
-        logging.info("Dynamic Pricing Study runner initialised for phase %s.", args.phase)
-        try:
-            run_phase(args.phase)
-        except Exception:
-            logging.exception("Phase %s failed.", args.phase)
-            raise
-        logging.info("Phase %s completed successfully.", args.phase)
-        print(f"Phase {args.phase} completed successfully.")
+        _handle_phase_run(args.phase)
         return
 
-    from pipeline.runner import run_workflow
-
-    from pipeline.runner import available_phases
-
-    phases = available_phases()
-    configure_logging(phases=phases)
-    logging.info("Dynamic Pricing Study runner initialised for full workflow.")
-    try:
-        run_workflow()
-    except Exception:
-        logging.exception("Full workflow failed.")
-        raise
-    logging.info("Full workflow completed successfully.")
-    print("Full workflow completed successfully.")
+    _handle_full_workflow()
 
 if __name__ == "__main__":
     main()

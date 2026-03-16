@@ -15,7 +15,7 @@ LOGS_PATH = "logs/"
 
 
 # -----------------------------
-# Phase output paths
+# Processed data artifacts
 # -----------------------------
 # Phase 2
 CLEAN_DATA_PATH = "data/processed/clean_transactions.parquet"
@@ -30,18 +30,18 @@ DAILY_AGG_DATA_PATH = "data/processed/daily_product_data.parquet"
 FEATURE_TRAIN_DATA_PATH = "data/processed/feature_train_data.parquet"
 FEATURE_TEST_DATA_PATH = "data/processed/feature_test_data.parquet"
 
-# Phase 6
+# Phase 6 model artifacts
 PHASE6_MODEL_ARTIFACT_PATH = "models/artifacts/demand_model.joblib"
 PHASE6_METRICS_PATH = "results/metrics/demand_model_metrics.json"
 
-# Phase 11
+# Phase 11 evaluation artifacts
 PHASE11_STRATEGY_METRICS_PATH = "results/metrics/strategy_metrics.parquet"
 PHASE11_STRATEGY_SUMMARY_PATH = "results/metrics/strategy_summary.json"
 PHASE11_STATISTICAL_TESTS_PATH = "results/metrics/statistical_tests.json"
 
 
 # -----------------------------
-# Phase output files (reports/logs)
+# Phase report and log files
 # -----------------------------
 PHASE1_REPORT_FILE = "phase1_raw_data_report.json"
 PHASE1_LOG_FILE = "phase1.log"
@@ -57,7 +57,7 @@ EXPERIMENT_LOG_FILE = "experiment.log"
 
 
 # -----------------------------
-# Report artifact paths
+# Report artifact directories
 # -----------------------------
 REPORTS_PATH = "results/reports/"
 

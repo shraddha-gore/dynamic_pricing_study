@@ -18,22 +18,22 @@ from config import (
     PROJECT_ROOT,
     SELECTED_PRODUCTS_PATH,
 )
-from preprocessing.common import configured_root, ensure_required_columns
+from preprocessing.common import configured_path, ensure_required_columns
 from utils.data_contracts import validate_daily_aggregation, validate_selected_products
 
 logger = logging.getLogger(__name__)
 
 
 def _input_path() -> Path:
-    return configured_root(PROJECT_ROOT) / CLEAN_DATA_PATH
+    return configured_path(PROJECT_ROOT, CLEAN_DATA_PATH)
 
 
 def _selected_products_input_path() -> Path:
-    return configured_root(PROJECT_ROOT) / SELECTED_PRODUCTS_PATH
+    return configured_path(PROJECT_ROOT, SELECTED_PRODUCTS_PATH)
 
 
 def _output_path() -> Path:
-    return configured_root(PROJECT_ROOT) / DAILY_AGG_DATA_PATH
+    return configured_path(PROJECT_ROOT, DAILY_AGG_DATA_PATH)
 
 
 def run_phase4() -> None:

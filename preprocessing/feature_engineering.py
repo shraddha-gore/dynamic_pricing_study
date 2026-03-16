@@ -18,22 +18,22 @@ from config import (
     PROJECT_ROOT,
     TRAIN_SPLIT_RATIO,
 )
-from preprocessing.common import configured_root, ensure_required_columns
+from preprocessing.common import configured_path, ensure_required_columns
 from utils.data_contracts import validate_phase5_features
 
 logger = logging.getLogger(__name__)
 
 
 def _input_path() -> Path:
-    return configured_root(PROJECT_ROOT) / DAILY_AGG_DATA_PATH
+    return configured_path(PROJECT_ROOT, DAILY_AGG_DATA_PATH)
 
 
 def _train_output_path() -> Path:
-    return configured_root(PROJECT_ROOT) / FEATURE_TRAIN_DATA_PATH
+    return configured_path(PROJECT_ROOT, FEATURE_TRAIN_DATA_PATH)
 
 
 def _test_output_path() -> Path:
-    return configured_root(PROJECT_ROOT) / FEATURE_TEST_DATA_PATH
+    return configured_path(PROJECT_ROOT, FEATURE_TEST_DATA_PATH)
 
 def _add_demand_lag_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.sort_values([COL_STOCK_CODE, "invoice_day"], kind="mergesort").copy()

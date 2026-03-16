@@ -24,22 +24,22 @@ from config import (
     SELECTED_PRODUCTS_PATH,
     SELECTED_PRODUCT_COUNT,
 )
-from preprocessing.common import configured_root, ensure_required_columns
+from preprocessing.common import configured_path, ensure_required_columns
 from utils.data_contracts import validate_selected_products
 
 logger = logging.getLogger(__name__)
 
 
 def _input_path() -> Path:
-    return configured_root(PROJECT_ROOT) / CLEAN_DATA_PATH
+    return configured_path(PROJECT_ROOT, CLEAN_DATA_PATH)
 
 
 def _report_path() -> Path:
-    return configured_root(PROJECT_ROOT) / REPORTS_PATH / PHASE3_REPORT_FILE
+    return configured_path(PROJECT_ROOT, f"{REPORTS_PATH}{PHASE3_REPORT_FILE}")
 
 
 def _selected_products_output_path() -> Path:
-    return configured_root(PROJECT_ROOT) / SELECTED_PRODUCTS_PATH
+    return configured_path(PROJECT_ROOT, SELECTED_PRODUCTS_PATH)
 
 
 def _validate_columns(df: pd.DataFrame) -> None:

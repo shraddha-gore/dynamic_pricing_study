@@ -23,16 +23,17 @@ from config import (
     RAW_DATA_PATH,
     REPORTS_PATH,
 )
+from preprocessing.common import configured_path
 
 logger = logging.getLogger(__name__)
 
 
 def _csv_path() -> Path:
-    return Path(PROJECT_ROOT).resolve() / RAW_DATA_PATH / RAW_DATA_FILE
+    return configured_path(PROJECT_ROOT, f"{RAW_DATA_PATH}{RAW_DATA_FILE}")
 
 
 def _report_path() -> Path:
-    return Path(PROJECT_ROOT).resolve() / REPORTS_PATH / PHASE1_REPORT_FILE
+    return configured_path(PROJECT_ROOT, f"{REPORTS_PATH}{PHASE1_REPORT_FILE}")
 
 
 def _records(df: pd.DataFrame, max_rows: int | None = None) -> list[dict[str, object]]:

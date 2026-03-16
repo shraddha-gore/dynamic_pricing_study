@@ -22,26 +22,26 @@ from config import (
     PHASE6_TARGET_COLUMN,
     PROJECT_ROOT,
 )
-from preprocessing.common import configured_root, ensure_required_columns
+from preprocessing.common import configured_path, ensure_required_columns
 from utils.data_contracts import validate_phase5_features
 
 logger = logging.getLogger(__name__)
 
 
 def _train_input_path() -> Path:
-    return configured_root(PROJECT_ROOT) / FEATURE_TRAIN_DATA_PATH
+    return configured_path(PROJECT_ROOT, FEATURE_TRAIN_DATA_PATH)
 
 
 def _test_input_path() -> Path:
-    return configured_root(PROJECT_ROOT) / FEATURE_TEST_DATA_PATH
+    return configured_path(PROJECT_ROOT, FEATURE_TEST_DATA_PATH)
 
 
 def _model_output_path() -> Path:
-    return configured_root(PROJECT_ROOT) / PHASE6_MODEL_ARTIFACT_PATH
+    return configured_path(PROJECT_ROOT, PHASE6_MODEL_ARTIFACT_PATH)
 
 
 def _metrics_output_path() -> Path:
-    return configured_root(PROJECT_ROOT) / PHASE6_METRICS_PATH
+    return configured_path(PROJECT_ROOT, PHASE6_METRICS_PATH)
 
 
 def _validate_phase6_input(df: pd.DataFrame, split_name: str) -> None:

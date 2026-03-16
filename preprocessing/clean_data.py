@@ -31,18 +31,18 @@ from config import (
     RAW_TO_CANONICAL_COLUMNS,
     TARGET_COUNTRY,
 )
-from preprocessing.common import configured_root, ensure_required_columns
+from preprocessing.common import configured_path, ensure_required_columns
 from utils.data_contracts import validate_clean_transactions
 
 logger = logging.getLogger(__name__)
 
 
 def _csv_path() -> Path:
-    return configured_root(PROJECT_ROOT) / RAW_DATA_PATH / RAW_DATA_FILE
+    return configured_path(PROJECT_ROOT, f"{RAW_DATA_PATH}{RAW_DATA_FILE}")
 
 
 def _output_path() -> Path:
-    return configured_root(PROJECT_ROOT) / CLEAN_DATA_PATH
+    return configured_path(PROJECT_ROOT, CLEAN_DATA_PATH)
 
 
 def _validate_columns(df: pd.DataFrame) -> None:

@@ -6,14 +6,14 @@ import pandas as pd
 from scipy.stats import ttest_rel, wilcoxon
 
 from config import PHASE11_COMPARISONS, PHASE11_PAIRING_KEYS, PHASE11_STATISTICAL_TESTS_PATH, PROJECT_ROOT
-from evaluation.metrics import load_strategy_results
-from preprocessing.common import configured_root
+from preprocessing.common import configured_path
+from utils.simulation_artifacts import load_strategy_results
 
 logger = logging.getLogger(__name__)
 
 
-def _configured_root_path():
-    return configured_root(PROJECT_ROOT)
+def _test_output_path():
+    return configured_path(PROJECT_ROOT, PHASE11_STATISTICAL_TESTS_PATH)
 
 
 def _align_results(
@@ -70,6 +70,23 @@ def _run_paired_tests(left_values: pd.Series, right_values: pd.Series) -> dict[s
     }
 
 
+def _comparison_test_results(
+    aligned_df: pd.DataFrame,
+    left_strategy: str,
+    right_strategy: str,
+) -> dict[str, dict[str, dict[str, float | int]]]:
+    return {
+        "revenue": _run_paired_tests(
+            aligned_df[f"predicted_revenue_{left_strategy}"],
+            aligned_df[f"predicted_revenue_{right_strategy}"],
+        ),
+        "stability": _run_paired_tests(
+            aligned_df[f"abs_price_change_{left_strategy}"],
+            aligned_df[f"abs_price_change_{right_strategy}"],
+        ),
+    }
+
+
 def run_tests() -> dict[str, dict[str, dict[str, dict[str, float | int]]]]:
     logger.info("Phase 11 statistical testing started.")
     results_by_strategy = load_strategy_results()
@@ -86,16 +103,11 @@ def run_tests() -> dict[str, dict[str, dict[str, dict[str, float | int]]]]:
             left_strategy,
             right_strategy,
         )
-        statistical_results["revenue_tests"][comparison_name] = _run_paired_tests(
-            aligned_df[f"predicted_revenue_{left_strategy}"],
-            aligned_df[f"predicted_revenue_{right_strategy}"],
-        )
-        statistical_results["stability_tests"][comparison_name] = _run_paired_tests(
-            aligned_df[f"abs_price_change_{left_strategy}"],
-            aligned_df[f"abs_price_change_{right_strategy}"],
-        )
+        comparison_results = _comparison_test_results(aligned_df, left_strategy, right_strategy)
+        statistical_results["revenue_tests"][comparison_name] = comparison_results["revenue"]
+        statistical_results["stability_tests"][comparison_name] = comparison_results["stability"]
 
-    output_path = _configured_root_path() / PHASE11_STATISTICAL_TESTS_PATH
+    output_path = _test_output_path()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(statistical_results, indent=2), encoding="utf-8")
 
