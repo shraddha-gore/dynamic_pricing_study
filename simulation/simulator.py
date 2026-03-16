@@ -8,9 +8,8 @@ import numpy as np
 import pandas as pd
 
 # Ensure project-root imports work when executing this file directly.
-PROJECT_ROOT_PATH = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT_PATH) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT_PATH))
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import (
     COL_STOCK_CODE,
@@ -34,16 +33,23 @@ from utils.data_contracts import validate_phase7_candidates, validate_phase7_res
 
 logger = logging.getLogger(__name__)
 
-CONFIGURED_ROOT_PATH = configured_root(PROJECT_ROOT)
-TEST_INPUT_PATH = CONFIGURED_ROOT_PATH / FEATURE_TEST_DATA_PATH
-MODEL_INPUT_PATH = CONFIGURED_ROOT_PATH / PHASE6_MODEL_ARTIFACT_PATH
-
 StrategySelector = Callable[[pd.DataFrame, dict], float]
-STRATEGY_SELECTORS: dict[str, StrategySelector] = {
-    "rule": choose_rule_price,
-    "ml": choose_ml_price,
-    "hybrid": choose_hybrid_price,
-}
+
+
+def _test_input_path() -> Path:
+    return configured_root(PROJECT_ROOT) / FEATURE_TEST_DATA_PATH
+
+
+def _model_input_path() -> Path:
+    return configured_root(PROJECT_ROOT) / PHASE6_MODEL_ARTIFACT_PATH
+
+
+def _strategy_selectors() -> dict[str, StrategySelector]:
+    return {
+        "rule": choose_rule_price,
+        "ml": choose_ml_price,
+        "hybrid": choose_hybrid_price,
+    }
 
 
 def _generate_candidate_prices(base_price: float) -> np.ndarray:
@@ -83,7 +89,7 @@ def _build_candidates_for_row(row: pd.Series, model) -> pd.DataFrame:
 
 
 def _build_simulation_outputs(test_df: pd.DataFrame, model, strategy_name: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-    selector = STRATEGY_SELECTORS[strategy_name]
+    selector = _strategy_selectors()[strategy_name]
 
     all_candidates: list[pd.DataFrame] = []
     all_results: list[dict[str, object]] = []
@@ -143,16 +149,18 @@ def _build_simulation_outputs(test_df: pd.DataFrame, model, strategy_name: str) 
 
 
 def run_phase7(strategy_name: str) -> None:
+    test_input_path = _test_input_path()
+    model_input_path = _model_input_path()
     if strategy_name not in PHASE7_STRATEGIES:
         raise ValueError(f"Unsupported strategy for Phase 7 simulation: {strategy_name}")
 
     logger.info("Phase 7 simulation started for strategy: %s", strategy_name)
-    if not TEST_INPUT_PATH.exists():
-        raise FileNotFoundError(f"Phase 7 test dataset not found: {TEST_INPUT_PATH}")
-    if not MODEL_INPUT_PATH.exists():
-        raise FileNotFoundError(f"Phase 7 model artifact not found: {MODEL_INPUT_PATH}")
+    if not test_input_path.exists():
+        raise FileNotFoundError(f"Phase 7 test dataset not found: {test_input_path}")
+    if not model_input_path.exists():
+        raise FileNotFoundError(f"Phase 7 model artifact not found: {model_input_path}")
 
-    test_df = pd.read_parquet(TEST_INPUT_PATH)
+    test_df = pd.read_parquet(test_input_path)
     ensure_required_columns(
         test_df,
         ["invoice_day", COL_STOCK_CODE, "avg_daily_price", *PHASE6_FEATURE_COLUMNS],
@@ -160,14 +168,15 @@ def run_phase7(strategy_name: str) -> None:
     )
     test_df = test_df.sort_values([COL_STOCK_CODE, "invoice_day"], kind="mergesort").reset_index(drop=True)
 
-    model = joblib.load(MODEL_INPUT_PATH)
+    model = joblib.load(model_input_path)
     candidates_df, results_df = _build_simulation_outputs(test_df, model, strategy_name)
 
     validate_phase7_candidates(candidates_df)
     validate_phase7_results(results_df)
 
-    candidates_output_path = CONFIGURED_ROOT_PATH / SIMULATION_CANDIDATE_PATHS[strategy_name]
-    results_output_path = CONFIGURED_ROOT_PATH / SIMULATION_RESULTS_PATHS[strategy_name]
+    root_path = configured_root(PROJECT_ROOT)
+    candidates_output_path = root_path / SIMULATION_CANDIDATE_PATHS[strategy_name]
+    results_output_path = root_path / SIMULATION_RESULTS_PATHS[strategy_name]
     candidates_output_path.parent.mkdir(parents=True, exist_ok=True)
     results_output_path.parent.mkdir(parents=True, exist_ok=True)
 

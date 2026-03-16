@@ -5,23 +5,27 @@ from preprocessing.feature_engineering import run_phase5
 from preprocessing.raw_inspection import run_phase1
 from preprocessing.select_products import run_phase3
 
-PHASE_MAP = {
-    1: run_phase1,
-    2: run_phase2,
-    3: run_phase3,
-    4: run_phase4,
-    5: run_phase5,
-    6: run_phase6,
-}
+
+def _phase_map():
+    return {
+        1: run_phase1,
+        2: run_phase2,
+        3: run_phase3,
+        4: run_phase4,
+        5: run_phase5,
+        6: run_phase6,
+    }
+
 
 def run_phase(phase: int) -> None:
-    if phase not in PHASE_MAP:
+    phase_map = _phase_map()
+    if phase not in phase_map:
         raise ValueError(f"Unsupported phase: {phase}")
-    PHASE_MAP[phase]()
+    phase_map[phase]()
 
 
 def available_phases() -> list[int]:
-    return sorted(PHASE_MAP.keys())
+    return sorted(_phase_map().keys())
 
 
 def run_workflow() -> None:

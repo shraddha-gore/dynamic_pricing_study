@@ -6,9 +6,8 @@ import sys
 import pandas as pd
 
 # Ensure project-root imports work when executing this file directly.
-PROJECT_ROOT_PATH = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT_PATH) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT_PATH))
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import (
     INVOICE_CANCELLATION_PREFIX,
@@ -25,10 +24,15 @@ from config import (
     REPORTS_PATH,
 )
 
-CONFIGURED_ROOT_PATH = Path(PROJECT_ROOT).resolve()
-CSV_PATH = CONFIGURED_ROOT_PATH / RAW_DATA_PATH / RAW_DATA_FILE
-REPORT_PATH = CONFIGURED_ROOT_PATH / REPORTS_PATH / PHASE1_REPORT_FILE
 logger = logging.getLogger(__name__)
+
+
+def _csv_path() -> Path:
+    return Path(PROJECT_ROOT).resolve() / RAW_DATA_PATH / RAW_DATA_FILE
+
+
+def _report_path() -> Path:
+    return Path(PROJECT_ROOT).resolve() / REPORTS_PATH / PHASE1_REPORT_FILE
 
 
 def _records(df: pd.DataFrame, max_rows: int | None = None) -> list[dict[str, object]]:
@@ -37,6 +41,7 @@ def _records(df: pd.DataFrame, max_rows: int | None = None) -> list[dict[str, ob
 
 
 def build_report_payload(df: pd.DataFrame) -> dict[str, object]:
+    csv_path = _csv_path()
     shape_rows, shape_cols = df.shape
 
     column_types = pd.DataFrame(
@@ -125,7 +130,7 @@ def build_report_payload(df: pd.DataFrame) -> dict[str, object]:
     return {
         "phase": 1,
         "name": "raw_data_inspection",
-        "source_file": str(CSV_PATH),
+        "source_file": str(csv_path),
         "dataset_shape": {"rows": int(shape_rows), "columns": int(shape_cols)},
         "column_types": _records(column_types),
         "null_summary": _records(null_summary),
@@ -153,16 +158,18 @@ def build_report_payload(df: pd.DataFrame) -> dict[str, object]:
 
 def run_phase1() -> None:
     logger.info("Phase 1 raw inspection started.")
+    csv_path = _csv_path()
+    report_path = _report_path()
 
-    if not CSV_PATH.exists():
-        logger.error("Dataset missing at %s", CSV_PATH)
-        raise FileNotFoundError(f"Dataset not found: {CSV_PATH}")
+    if not csv_path.exists():
+        logger.error("Dataset missing at %s", csv_path)
+        raise FileNotFoundError(f"Dataset not found: {csv_path}")
 
-    df = pd.read_csv(CSV_PATH)
-    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    df = pd.read_csv(csv_path)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     report_payload = build_report_payload(df)
-    REPORT_PATH.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
-    logger.info("Phase 1 raw inspection completed. Report saved to %s", REPORT_PATH)
+    report_path.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
+    logger.info("Phase 1 raw inspection completed. Report saved to %s", report_path)
 
 
 if __name__ == "__main__":

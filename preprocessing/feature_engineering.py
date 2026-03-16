@@ -5,9 +5,8 @@ import sys
 import pandas as pd
 
 # Ensure project-root imports work when executing this file directly.
-PROJECT_ROOT_PATH = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT_PATH) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT_PATH))
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import (
     COL_STOCK_CODE,
@@ -24,10 +23,17 @@ from utils.data_contracts import validate_phase5_features
 
 logger = logging.getLogger(__name__)
 
-CONFIGURED_ROOT_PATH = configured_root(PROJECT_ROOT)
-INPUT_PATH = CONFIGURED_ROOT_PATH / DAILY_AGG_DATA_PATH
-TRAIN_OUTPUT_PATH = CONFIGURED_ROOT_PATH / FEATURE_TRAIN_DATA_PATH
-TEST_OUTPUT_PATH = CONFIGURED_ROOT_PATH / FEATURE_TEST_DATA_PATH
+
+def _input_path() -> Path:
+    return configured_root(PROJECT_ROOT) / DAILY_AGG_DATA_PATH
+
+
+def _train_output_path() -> Path:
+    return configured_root(PROJECT_ROOT) / FEATURE_TRAIN_DATA_PATH
+
+
+def _test_output_path() -> Path:
+    return configured_root(PROJECT_ROOT) / FEATURE_TEST_DATA_PATH
 
 def _add_demand_lag_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.sort_values([COL_STOCK_CODE, "invoice_day"], kind="mergesort").copy()
@@ -83,15 +89,18 @@ def _split_train_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 
 def run_phase5() -> None:
+    input_path = _input_path()
+    train_output_path = _train_output_path()
+    test_output_path = _test_output_path()
     logger.info("Phase 5 feature engineering started.")
-    logger.info("Input daily dataset: %s", INPUT_PATH)
-    logger.info("Output feature train dataset: %s", TRAIN_OUTPUT_PATH)
-    logger.info("Output feature test dataset: %s", TEST_OUTPUT_PATH)
+    logger.info("Input daily dataset: %s", input_path)
+    logger.info("Output feature train dataset: %s", train_output_path)
+    logger.info("Output feature test dataset: %s", test_output_path)
 
-    if not INPUT_PATH.exists():
-        raise FileNotFoundError(f"Daily aggregated dataset not found: {INPUT_PATH}")
+    if not input_path.exists():
+        raise FileNotFoundError(f"Daily aggregated dataset not found: {input_path}")
 
-    df = pd.read_parquet(INPUT_PATH)
+    df = pd.read_parquet(input_path)
     ensure_required_columns(
         df,
         [COL_STOCK_CODE, "invoice_day", "daily_units", "avg_daily_price", "daily_revenue"],
@@ -119,10 +128,10 @@ def run_phase5() -> None:
     validate_phase5_features(train_df, "train")
     validate_phase5_features(test_df, "test")
 
-    TRAIN_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    TEST_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    train_df.to_parquet(TRAIN_OUTPUT_PATH, index=False)
-    test_df.to_parquet(TEST_OUTPUT_PATH, index=False)
+    train_output_path.parent.mkdir(parents=True, exist_ok=True)
+    test_output_path.parent.mkdir(parents=True, exist_ok=True)
+    train_df.to_parquet(train_output_path, index=False)
+    test_df.to_parquet(test_output_path, index=False)
 
     logger.info(
         (

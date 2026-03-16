@@ -34,6 +34,11 @@ FEATURE_TEST_DATA_PATH = "data/processed/feature_test_data.parquet"
 PHASE6_MODEL_ARTIFACT_PATH = "models/artifacts/demand_model.joblib"
 PHASE6_METRICS_PATH = "results/metrics/demand_model_metrics.json"
 
+# Phase 11
+PHASE11_STRATEGY_METRICS_PATH = "results/metrics/strategy_metrics.parquet"
+PHASE11_STRATEGY_SUMMARY_PATH = "results/metrics/strategy_summary.json"
+PHASE11_STATISTICAL_TESTS_PATH = "results/metrics/statistical_tests.json"
+
 
 # -----------------------------
 # Phase output files (reports/logs)
@@ -47,6 +52,7 @@ PHASE4_LOG_FILE = "phase4.log"
 PHASE5_LOG_FILE = "phase5.log"
 PHASE6_LOG_FILE = "phase6.log"
 PHASE7_LOG_FILE = "phase7.log"
+PHASE11_LOG_FILE = "phase11.log"
 EXPERIMENT_LOG_FILE = "experiment.log"
 
 
@@ -264,3 +270,24 @@ PHASE7_RESULT_FROZEN_COLUMNS = [
     "predicted_revenue",
     "strategy_name",
 ]
+
+
+# -----------------------------
+# Phase 11 constants
+# -----------------------------
+PHASE11_METRIC_COLUMNS = [
+    COL_STOCK_CODE,
+    "strategy",
+    "metric_level",
+    "total_revenue",
+    "mean_daily_revenue",
+    "mean_absolute_change",
+    "price_std",
+    "max_price_jump",
+    "change_frequency",
+]
+PHASE11_PAIRING_KEYS = [COL_STOCK_CODE, "invoice_day"]
+PHASE11_COMPARISONS = {
+    "hybrid_vs_ml": ("hybrid", "ml"),
+    "hybrid_vs_rule": ("hybrid", "rule"),
+}

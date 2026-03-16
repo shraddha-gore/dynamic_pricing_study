@@ -6,9 +6,8 @@ import sys
 import pandas as pd
 
 # Ensure project-root imports work when executing this file directly.
-PROJECT_ROOT_PATH = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT_PATH) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT_PATH))
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import (
     CLEAN_DATA_PATH,
@@ -30,10 +29,17 @@ from utils.data_contracts import validate_selected_products
 
 logger = logging.getLogger(__name__)
 
-CONFIGURED_ROOT_PATH = configured_root(PROJECT_ROOT)
-INPUT_PATH = CONFIGURED_ROOT_PATH / CLEAN_DATA_PATH
-REPORT_PATH = CONFIGURED_ROOT_PATH / REPORTS_PATH / PHASE3_REPORT_FILE
-SELECTED_PRODUCTS_OUTPUT_PATH = CONFIGURED_ROOT_PATH / SELECTED_PRODUCTS_PATH
+
+def _input_path() -> Path:
+    return configured_root(PROJECT_ROOT) / CLEAN_DATA_PATH
+
+
+def _report_path() -> Path:
+    return configured_root(PROJECT_ROOT) / REPORTS_PATH / PHASE3_REPORT_FILE
+
+
+def _selected_products_output_path() -> Path:
+    return configured_root(PROJECT_ROOT) / SELECTED_PRODUCTS_PATH
 
 
 def _validate_columns(df: pd.DataFrame) -> None:
@@ -84,16 +90,19 @@ def _build_report_payload(metrics: pd.DataFrame, eligible: pd.DataFrame, selecte
 
 
 def run_phase3() -> None:
+    input_path = _input_path()
+    report_path = _report_path()
+    selected_products_output_path = _selected_products_output_path()
     logger.info("Phase 3 product selection started.")
-    logger.info("Input dataset: %s", INPUT_PATH)
-    logger.info("Output report: %s", REPORT_PATH)
-    logger.info("Output selected products dataset: %s", SELECTED_PRODUCTS_OUTPUT_PATH)
+    logger.info("Input dataset: %s", input_path)
+    logger.info("Output report: %s", report_path)
+    logger.info("Output selected products dataset: %s", selected_products_output_path)
 
-    if not INPUT_PATH.exists():
-        logger.error("Clean dataset missing at %s", INPUT_PATH)
-        raise FileNotFoundError(f"Dataset not found: {INPUT_PATH}")
+    if not input_path.exists():
+        logger.error("Clean dataset missing at %s", input_path)
+        raise FileNotFoundError(f"Dataset not found: {input_path}")
 
-    df = pd.read_parquet(INPUT_PATH)
+    df = pd.read_parquet(input_path)
     _validate_columns(df)
     df[COL_INVOICE_DATE] = pd.to_datetime(df[COL_INVOICE_DATE], errors="coerce", format="mixed")
     invalid_dates = int(df[COL_INVOICE_DATE].isna().sum())
@@ -143,15 +152,15 @@ def run_phase3() -> None:
     validate_selected_products(selected)
     logger.info("Selected top %s products for downstream phases.", SELECTED_PRODUCT_COUNT)
 
-    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SELECTED_PRODUCTS_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    selected.to_parquet(SELECTED_PRODUCTS_OUTPUT_PATH, index=False)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    selected_products_output_path.parent.mkdir(parents=True, exist_ok=True)
+    selected.to_parquet(selected_products_output_path, index=False)
     report_payload = _build_report_payload(metrics, eligible, selected)
-    REPORT_PATH.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
+    report_path.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
     logger.info(
         "Phase 3 product selection completed. Saved report to %s and selected products to %s",
-        REPORT_PATH,
-        SELECTED_PRODUCTS_OUTPUT_PATH,
+        report_path,
+        selected_products_output_path,
     )
 
 

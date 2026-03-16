@@ -1,0 +1,103 @@
+import json
+import logging
+
+import numpy as np
+import pandas as pd
+from scipy.stats import ttest_rel, wilcoxon
+
+from config import PHASE11_COMPARISONS, PHASE11_PAIRING_KEYS, PHASE11_STATISTICAL_TESTS_PATH, PROJECT_ROOT
+from evaluation.metrics import load_strategy_results
+from preprocessing.common import configured_root
+
+logger = logging.getLogger(__name__)
+
+
+def _configured_root_path():
+    return configured_root(PROJECT_ROOT)
+
+
+def _align_results(
+    left_df: pd.DataFrame,
+    right_df: pd.DataFrame,
+    left_strategy: str,
+    right_strategy: str,
+) -> pd.DataFrame:
+    aligned_df = left_df.merge(
+        right_df,
+        on=PHASE11_PAIRING_KEYS,
+        how="inner",
+        suffixes=(f"_{left_strategy}", f"_{right_strategy}"),
+    )
+
+    if len(aligned_df) != len(left_df) or len(aligned_df) != len(right_df):
+        raise ValueError(
+            f"Phase 11 statistical testing alignment failed for '{left_strategy}' vs '{right_strategy}'."
+        )
+
+    return aligned_df.sort_values(PHASE11_PAIRING_KEYS, kind="mergesort").reset_index(drop=True)
+
+
+def _serialise_test_result(statistic: float, p_value: float, sample_size: int) -> dict[str, float | int]:
+    return {
+        "statistic": float(statistic),
+        "p_value": float(p_value),
+        "sample_size": int(sample_size),
+    }
+
+
+def _run_paired_tests(left_values: pd.Series, right_values: pd.Series) -> dict[str, dict[str, float | int]]:
+    left_array = left_values.to_numpy(dtype=float)
+    right_array = right_values.to_numpy(dtype=float)
+    sample_size = len(left_array)
+
+    if sample_size == 0:
+        raise ValueError("Phase 11 statistical testing failed: no paired observations available.")
+
+    differences = left_array - right_array
+    if np.allclose(differences, 0.0):
+        neutral_result = _serialise_test_result(0.0, 1.0, sample_size)
+        return {
+            "paired_ttest": neutral_result,
+            "wilcoxon": neutral_result,
+        }
+
+    paired_ttest = ttest_rel(left_array, right_array)
+    wilcoxon_result = wilcoxon(left_array, right_array)
+
+    return {
+        "paired_ttest": _serialise_test_result(paired_ttest.statistic, paired_ttest.pvalue, sample_size),
+        "wilcoxon": _serialise_test_result(wilcoxon_result.statistic, wilcoxon_result.pvalue, sample_size),
+    }
+
+
+def run_tests() -> dict[str, dict[str, dict[str, dict[str, float | int]]]]:
+    logger.info("Phase 11 statistical testing started.")
+    results_by_strategy = load_strategy_results()
+
+    statistical_results = {
+        "revenue_tests": {},
+        "stability_tests": {},
+    }
+
+    for comparison_name, (left_strategy, right_strategy) in PHASE11_COMPARISONS.items():
+        aligned_df = _align_results(
+            results_by_strategy[left_strategy],
+            results_by_strategy[right_strategy],
+            left_strategy,
+            right_strategy,
+        )
+        statistical_results["revenue_tests"][comparison_name] = _run_paired_tests(
+            aligned_df[f"predicted_revenue_{left_strategy}"],
+            aligned_df[f"predicted_revenue_{right_strategy}"],
+        )
+        statistical_results["stability_tests"][comparison_name] = _run_paired_tests(
+            aligned_df[f"abs_price_change_{left_strategy}"],
+            aligned_df[f"abs_price_change_{right_strategy}"],
+        )
+
+    output_path = _configured_root_path() / PHASE11_STATISTICAL_TESTS_PATH
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(statistical_results, indent=2), encoding="utf-8")
+
+    logger.info("Phase 11 statistical tests written successfully to %s", output_path)
+    return statistical_results

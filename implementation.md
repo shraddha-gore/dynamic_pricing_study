@@ -54,6 +54,7 @@ Data -> Inspection -> Cleaning -> Product Selection -> Aggregation -> Feature En
 - Simulation uses predicted demand only
 - Full workflow (`python main.py --workflow full`) runs Phases 1-6 only
 - Phase 7 requires explicit simulation mode: `python main.py --simulate {rule|ml|hybrid|all}`
+- Phase 11 requires explicit evaluation mode: `python main.py --evaluate`
 
 ## Implementation Best Practices (All Phases)
 
@@ -81,6 +82,7 @@ Data -> Inspection -> Cleaning -> Product Selection -> Aggregation -> Feature En
 ### Single Source of Truth
 - All paths, thresholds, feature names, and strategy parameters must be centralized in `config.py`
 - No hardcoded constants inside phase modules
+- Phase modules should resolve runtime paths from `config.py` rather than keep module-level path constants
 
 ### Global Schema Naming Convention
 - All processed/intermediate dataset columns must use `snake_case`
@@ -107,26 +109,27 @@ Data -> Inspection -> Cleaning -> Product Selection -> Aggregation -> Feature En
 ## Global Configuration Requirements
 
 Centralize in `config.py`:
+- Project root: `PROJECT_ROOT`
 - Paths: `RAW_DATA_PATH`, `PROCESSED_DATA_PATH`, `RESULTS_PATH`, `REPORTS_PATH`, `SIMULATION_OUTPUT_PATH`, `LOGS_PATH`
+- Raw input file: `RAW_DATA_FILE`
 - Raw source columns: `RAW_COL_INVOICE`, `RAW_COL_STOCK_CODE`, `RAW_COL_DESCRIPTION`, `RAW_COL_QUANTITY`, `RAW_COL_PRICE`, `RAW_COL_INVOICE_DATE`, `RAW_COL_CUSTOMER_ID`, `RAW_COL_COUNTRY`
 - Canonical columns (`snake_case`): `COL_INVOICE`, `COL_STOCK_CODE`, `COL_DESCRIPTION`, `COL_QUANTITY`, `COL_PRICE`, `COL_INVOICE_DATE`, `COL_CUSTOMER_ID`, `COL_COUNTRY`
 - Raw-to-canonical mapping: `RAW_TO_CANONICAL_COLUMNS`
+- Phase output paths: `CLEAN_DATA_PATH`, `SELECTED_PRODUCTS_PATH`, `DAILY_AGG_DATA_PATH`, `FEATURE_TRAIN_DATA_PATH`, `FEATURE_TEST_DATA_PATH`, `PHASE6_MODEL_ARTIFACT_PATH`, `PHASE6_METRICS_PATH`, `PHASE11_STRATEGY_METRICS_PATH`, `PHASE11_STRATEGY_SUMMARY_PATH`, `PHASE11_STATISTICAL_TESTS_PATH`
+- Report/log paths and files: `PHASE1_REPORT_FILE`, `PHASE1_LOG_FILE`, `PHASE2_LOG_FILE`, `PHASE3_REPORT_FILE`, `PHASE3_LOG_FILE`, `PHASE4_LOG_FILE`, `PHASE5_LOG_FILE`, `PHASE6_LOG_FILE`, `PHASE7_LOG_FILE`, `PHASE11_LOG_FILE`, `EXPERIMENT_LOG_FILE`
 - Frozen output schemas: `PHASE2_FROZEN_COLUMNS`, `PHASE3_FROZEN_COLUMNS`, `PHASE4_FROZEN_COLUMNS`, `PHASE5_FROZEN_COLUMNS`
 - Frozen Phase 5 model feature schema: `PHASE5_FROZEN_FEATURE_COLUMNS`
 - Phase 5 calendar schema helpers: `PHASE5_WEEKDAY_COLUMNS`, `PHASE5_MONTH_COLUMNS`
 - Phase 6 model schema params: `PHASE6_FEATURE_COLUMNS`, `PHASE6_TARGET_COLUMN`, `PHASE6_MODEL_TYPE`
 - Future phases must follow the same freeze pattern before being marked `Completed`
 - Experimental params: `TRAIN_SPLIT_RATIO`, `PRICE_GRID_PERCENTAGE`, `MAX_DAILY_CHANGE`, `HYBRID_SMOOTHING_ALPHA`, `RULE_PRICE_INCREASE`, `RULE_PRICE_DECREASE`
-- Phase 2 params: `TARGET_COUNTRY`, `INVOICE_CANCELLATION_PREFIX`, `PRICE_OUTLIER_THRESHOLD`, `PRICE_OUTLIER_REVIEW_TOP_N`
+- Phase 1 params: `RAW_INSPECTION_PERCENTILES`
+- Phase 2 params: `TARGET_COUNTRY`, `INVOICE_CANCELLATION_PREFIX`, `PRICE_OUTLIER_THRESHOLD`, `PRICE_OUTLIER_REVIEW_TOP_N`, `EXCLUDED_STOCK_CODES`, `PHASE2_STRING_COLUMNS`, `PHASE2_PRICE_DESCRIBE_PERCENTILES`, `PHASE2_RAW_REQUIRED_COLUMNS`
 - Phase 3 params: `MIN_ACTIVE_DAYS`, `SELECTED_PRODUCT_COUNT`, `MIN_PRICE_STD`
-- Phase output files: `PHASE1_REPORT_FILE`, `PHASE1_LOG_FILE`, `PHASE2_LOG_FILE`, `PHASE3_REPORT_FILE`, `PHASE3_LOG_FILE`, `PHASE4_LOG_FILE`, `PHASE5_LOG_FILE`, `PHASE6_LOG_FILE`, `PHASE7_LOG_FILE`, `EXPERIMENT_LOG_FILE`
-- Report paths: `REPORTS_PATH`
-- Phase 4 paths: `DAILY_AGG_DATA_PATH`, `SELECTED_PRODUCTS_PATH`
-- Phase 5 paths: `FEATURE_TRAIN_DATA_PATH`, `FEATURE_TEST_DATA_PATH`
-- Phase 6 paths: `PHASE6_MODEL_ARTIFACT_PATH`, `PHASE6_METRICS_PATH`
 - Phase 7 params: `PHASE7_GRID_POINTS`, `PHASE7_STRATEGIES`
 - Phase 7 paths: `SIMULATION_CANDIDATE_PATHS`, `SIMULATION_RESULTS_PATHS`
 - Phase 7 frozen schemas: `PHASE7_CANDIDATE_FROZEN_COLUMNS`, `PHASE7_RESULT_FROZEN_COLUMNS`
+- Phase 11 evaluation constants: `PHASE11_METRIC_COLUMNS`, `PHASE11_PAIRING_KEYS`, `PHASE11_COMPARISONS`
 
 ## 3. Phase 0 - Project Structure Initialization
 
@@ -774,45 +777,119 @@ Instead of automatic percentile trimming:
 ## 14. Phase 11 - Metrics and Statistical Testing
 
 ### Objective
-- Quantify revenue and stability performance across strategies
+- Quantitatively evaluate and compare pricing strategies in terms of revenue performance and pricing stability
 
 ### Rationale
-- Descriptive metrics show practical effect size while statistical tests assess whether observed differences are robust
-- Revenue and stability must be evaluated jointly to support strategy recommendations
+- The study compares rule-based, machine learning, and hybrid pricing strategies using one consistent evaluation contract
+- Revenue metrics capture economic effectiveness of pricing decisions
+- Stability metrics capture operational realism in environments where excessive price volatility is undesirable
+- Statistical testing distinguishes systematic strategy differences from random variation
 
 ### Implementation Files
+- `main.py`
 - `evaluation/metrics.py`
 - `evaluation/statistical_tests.py`
+- `config.py`
+- `utils/logging_config.py`
 
 ### Outputs
-- Evaluation metrics tables and statistical test results (paths TBD)
+- `results/metrics/strategy_metrics.parquet`
+- `results/metrics/strategy_summary.json`
+- `results/metrics/statistical_tests.json`
+- `logs/phase11.log`
 
 ### Status
-- Planned
+- Completed
 
-### Planned Scope
-- Revenue metrics: total, mean daily
-- Revenue metrics will be computed from simulator outputs using `daily_revenue = chosen_price * predicted_demand`
-- Stability metrics: mean absolute change, std dev, max jump, change frequency
-- Stability metrics will be computed from simulator-produced `price_change` and `abs_price_change` columns
-- Stability metric definitions:
+### Implemented Scope
+- Add explicit Phase 11 CLI entrypoint via `python main.py --evaluate`
+- Require all three Phase 7 simulation outputs and fail hard if any are missing
+- Validate each strategy result file against `PHASE7_RESULT_FROZEN_COLUMNS` before evaluation proceeds
+- Compute product-level metrics for each `(stock_code, strategy)` pair
+- Aggregate product-level metrics into strategy-level rows with `stock_code = "ALL"` and `metric_level = "strategy"`
+- Persist a unified metrics table controlled by `PHASE11_METRIC_COLUMNS`
+- Persist headline strategy summary JSON for downstream dashboard/reporting use
+- Run paired t-tests and Wilcoxon signed-rank tests for `hybrid_vs_ml` and `hybrid_vs_rule`
+- Centralize Phase 11 artifact paths, log file, pairing keys, comparison set, and metric schema constants in `config.py`
+- Resolve runtime file paths from `config.py` instead of keeping module-level path constants in phase modules
+
+### Input Artifacts
+- `results/simulation/rule_results.parquet`
+- `results/simulation/ml_results.parquet`
+- `results/simulation/hybrid_results.parquet`
+- All input files must satisfy `PHASE7_RESULT_FROZEN_COLUMNS`
+- Validation occurs before metrics or tests are written
+
+### Revenue Metric Computation
+- Revenue is derived directly from simulator outputs: `daily_revenue = predicted_revenue`
+- This preserves the simulator as the canonical source of economic outcomes and avoids recomputation drift
+- Revenue metrics:
+  - `total_revenue = sum(predicted_revenue)`
+  - `mean_daily_revenue = mean(predicted_revenue)` at product level, then mean of product-level values at strategy summary level
+
+### Stability Metric Computation
+- Stability metrics are derived directly from simulator result columns
+- Metrics:
   - `mean_absolute_change = mean(abs_price_change)`
-  - `price_std = std(chosen_price)`
+  - `price_std = std(chosen_price)` using per-product price trajectories
   - `max_price_jump = max(abs_price_change)`
   - `change_frequency = count(price_change != 0) / total_observations`
-- Statistical comparisons:
-  - Paired tests are applied on aligned (`stock_code`, `invoice_day`) observations across strategies
-  - Hybrid vs ML: paired tests
-  - Hybrid vs Rule: paired tests
-  - Primary test: paired t-test on daily revenue differences and absolute price-change differences
-  - Optional robustness test: Wilcoxon signed-rank test
+- These metrics jointly describe average adjustment size, dispersion, extreme volatility, and how often prices move
+
+### Metric Aggregation Levels
+- Level 1 - Product-level metrics keyed by `(stock_code, strategy)`
+- Level 2 - Strategy-level summary rows aggregated from product-level metrics
+- `results/metrics/strategy_metrics.parquet` is a single unified table with:
+  - `metric_level = "product"` for SKU rows
+  - `metric_level = "strategy"` for summary rows
+- Strategy-level rows use `stock_code = "ALL"`
+
+### Statistical Testing
+- Paired observations are aligned on `(stock_code, invoice_day)`
+- Comparisons:
+  - `hybrid_vs_ml`
+  - `hybrid_vs_rule`
+- Tests:
+  - Paired t-test
+  - Wilcoxon signed-rank test
+- Metrics tested:
+  - `predicted_revenue`
+  - `abs_price_change`
+- No multiple-testing correction is applied because the four comparisons are pre-specified in the experimental design
+- Each test record contains test statistic, p-value, and sample size
+
+### Execution
+- Phase 11 runs explicitly after simulations complete
+- Command: `python main.py --evaluate`
+- Execution sequence:
+  - load simulation outputs
+  - validate schemas and pairing integrity
+  - compute product and strategy metrics
+  - run paired statistical tests
+  - write evaluation artifacts
 
 ### Frozen Results
-- Pending phase completion; metric tables and test outputs will be frozen after Phase 11 execution is finalized
+- Latest verified command: `venv/bin/python main.py --evaluate`
+- Input rows per strategy result file: 266
+- Strategy metrics table rows: 18 total
+  - 15 product-level rows
+  - 3 strategy-level rows
+- Latest verified strategy summary:
+  - `hybrid`: `total_revenue = 378588.424676`, `mean_absolute_change = 0.759990`, `price_std = 0.802687`, `max_price_jump = 6.728000`, `change_frequency = 0.924556`
+  - `ml`: `total_revenue = 393990.384499`, `mean_absolute_change = 1.138769`, `price_std = 1.034627`, `max_price_jump = 8.817000`, `change_frequency = 0.948020`
+  - `rule`: `total_revenue = 384707.660645`, `mean_absolute_change = 1.127264`, `price_std = 1.012660`, `max_price_jump = 8.607071`, `change_frequency = 0.951409`
+- Latest verified statistical test headlines:
+  - Revenue `hybrid_vs_ml`: paired t-test `p = 2.0159e-17`, Wilcoxon `p = 2.2259e-25`
+  - Revenue `hybrid_vs_rule`: paired t-test `p = 4.4580e-05`, Wilcoxon `p = 0.0982`
+  - Stability `hybrid_vs_ml`: paired t-test `p = 8.2526e-32`, Wilcoxon `p = 7.5344e-36`
+  - Stability `hybrid_vs_rule`: paired t-test `p = 3.4556e-29`, Wilcoxon `p = 1.0559e-36`
 
 ### Phase Handoff Contract
-- Consumes strategy result outputs from Phase 8-10 and produces comparative artifacts for dashboarding and documentation
-
+- Phase 12 dashboard must consume:
+  - `results/metrics/strategy_metrics.parquet`
+  - `results/metrics/strategy_summary.json`
+  - `results/metrics/statistical_tests.json`
+- The dashboard must treat these artifacts as read-only analytical outputs and must not recompute metrics or statistical tests
 ## 15. Phase 12 - Dashboard
 
 ### Objective
@@ -951,14 +1028,16 @@ Instead of automatic percentile trimming:
 - Consumes the Phase 14 frozen package and certifies end-to-end reproducibility status
 
 ## Current Implementation Note
-- As of March 9, 2026, executable implementation coverage is Phases 1-10
+- As of March 16, 2026, executable implementation coverage is Phases 1-11
 - Latest completed workflow run: `python main.py --workflow full` (Phases 1-6)
 - Latest simulation runs by strategy:
   - `rule` -> 2026-03-09
   - `ml` -> 2026-03-09
   - `hybrid` -> 2026-03-09
 - Explicit multi-strategy simulation mode: `python main.py --simulate all`
-- Phases 11-15 remain planned and will be added incrementally
+- Latest evaluation run: `python main.py --evaluate` -> 2026-03-16
+- Implemented explicit evaluation mode: `python main.py --evaluate`
+- Phases 12-15 remain planned and will be added incrementally
 
 ## Final Frozen Design Decisions
 - Dataset restricted to 2010-2011 only

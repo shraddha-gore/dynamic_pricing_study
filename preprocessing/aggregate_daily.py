@@ -5,9 +5,8 @@ import sys
 import pandas as pd
 
 # Ensure project-root imports work when executing this file directly.
-PROJECT_ROOT_PATH = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT_PATH) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT_PATH))
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import (
     CLEAN_DATA_PATH,
@@ -24,24 +23,34 @@ from utils.data_contracts import validate_daily_aggregation, validate_selected_p
 
 logger = logging.getLogger(__name__)
 
-CONFIGURED_ROOT_PATH = configured_root(PROJECT_ROOT)
-INPUT_PATH = CONFIGURED_ROOT_PATH / CLEAN_DATA_PATH
-SELECTED_PRODUCTS_INPUT_PATH = CONFIGURED_ROOT_PATH / SELECTED_PRODUCTS_PATH
-OUTPUT_PATH = CONFIGURED_ROOT_PATH / DAILY_AGG_DATA_PATH
+
+def _input_path() -> Path:
+    return configured_root(PROJECT_ROOT) / CLEAN_DATA_PATH
+
+
+def _selected_products_input_path() -> Path:
+    return configured_root(PROJECT_ROOT) / SELECTED_PRODUCTS_PATH
+
+
+def _output_path() -> Path:
+    return configured_root(PROJECT_ROOT) / DAILY_AGG_DATA_PATH
 
 
 def run_phase4() -> None:
+    input_path = _input_path()
+    selected_products_input_path = _selected_products_input_path()
+    output_path = _output_path()
     logger.info("Phase 4 daily aggregation started.")
-    logger.info("Input cleaned dataset: %s", INPUT_PATH)
-    logger.info("Input selected products dataset: %s", SELECTED_PRODUCTS_INPUT_PATH)
-    logger.info("Output aggregated dataset: %s", OUTPUT_PATH)
+    logger.info("Input cleaned dataset: %s", input_path)
+    logger.info("Input selected products dataset: %s", selected_products_input_path)
+    logger.info("Output aggregated dataset: %s", output_path)
 
-    if not INPUT_PATH.exists():
-        raise FileNotFoundError(f"Clean dataset not found: {INPUT_PATH}")
-    if not SELECTED_PRODUCTS_INPUT_PATH.exists():
-        raise FileNotFoundError(f"Selected products dataset not found: {SELECTED_PRODUCTS_INPUT_PATH}")
+    if not input_path.exists():
+        raise FileNotFoundError(f"Clean dataset not found: {input_path}")
+    if not selected_products_input_path.exists():
+        raise FileNotFoundError(f"Selected products dataset not found: {selected_products_input_path}")
 
-    selected_products = pd.read_parquet(SELECTED_PRODUCTS_INPUT_PATH)
+    selected_products = pd.read_parquet(selected_products_input_path)
     validate_selected_products(selected_products)
     selected_codes = (
         selected_products[COL_STOCK_CODE]
@@ -53,7 +62,7 @@ def run_phase4() -> None:
     )
     selected_codes = list(dict.fromkeys(selected_codes))
 
-    df = pd.read_parquet(INPUT_PATH)
+    df = pd.read_parquet(input_path)
     ensure_required_columns(
         df,
         [COL_STOCK_CODE, COL_INVOICE_DATE, COL_QUANTITY, COL_PRICE],
@@ -90,8 +99,8 @@ def run_phase4() -> None:
         raise ValueError("Daily aggregation produced no rows.")
     validate_daily_aggregation(daily)
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    daily.to_parquet(OUTPUT_PATH, index=False)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    daily.to_parquet(output_path, index=False)
 
     min_date = daily["invoice_day"].min()
     max_date = daily["invoice_day"].max()
@@ -107,7 +116,7 @@ def run_phase4() -> None:
         min_date.date().isoformat(),
         max_date.date().isoformat(),
     )
-    logger.info("Phase 4 daily aggregation completed. Saved aggregated data to %s", OUTPUT_PATH)
+    logger.info("Phase 4 daily aggregation completed. Saved aggregated data to %s", output_path)
 
 
 if __name__ == "__main__":

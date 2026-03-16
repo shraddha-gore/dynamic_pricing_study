@@ -9,9 +9,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
 # Ensure project-root imports work when executing this file directly.
-PROJECT_ROOT_PATH = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT_PATH) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT_PATH))
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import (
     FEATURE_TEST_DATA_PATH,
@@ -28,11 +27,21 @@ from utils.data_contracts import validate_phase5_features
 
 logger = logging.getLogger(__name__)
 
-CONFIGURED_ROOT_PATH = configured_root(PROJECT_ROOT)
-TRAIN_INPUT_PATH = CONFIGURED_ROOT_PATH / FEATURE_TRAIN_DATA_PATH
-TEST_INPUT_PATH = CONFIGURED_ROOT_PATH / FEATURE_TEST_DATA_PATH
-MODEL_OUTPUT_PATH = CONFIGURED_ROOT_PATH / PHASE6_MODEL_ARTIFACT_PATH
-METRICS_OUTPUT_PATH = CONFIGURED_ROOT_PATH / PHASE6_METRICS_PATH
+
+def _train_input_path() -> Path:
+    return configured_root(PROJECT_ROOT) / FEATURE_TRAIN_DATA_PATH
+
+
+def _test_input_path() -> Path:
+    return configured_root(PROJECT_ROOT) / FEATURE_TEST_DATA_PATH
+
+
+def _model_output_path() -> Path:
+    return configured_root(PROJECT_ROOT) / PHASE6_MODEL_ARTIFACT_PATH
+
+
+def _metrics_output_path() -> Path:
+    return configured_root(PROJECT_ROOT) / PHASE6_METRICS_PATH
 
 
 def _validate_phase6_input(df: pd.DataFrame, split_name: str) -> None:
@@ -44,19 +53,23 @@ def _validate_phase6_input(df: pd.DataFrame, split_name: str) -> None:
 
 
 def run_phase6() -> None:
+    train_input_path = _train_input_path()
+    test_input_path = _test_input_path()
+    model_output_path = _model_output_path()
+    metrics_output_path = _metrics_output_path()
     logger.info("Phase 6 demand model training started.")
-    logger.info("Input training dataset: %s", TRAIN_INPUT_PATH)
-    logger.info("Input testing dataset: %s", TEST_INPUT_PATH)
-    logger.info("Output model artifact: %s", MODEL_OUTPUT_PATH)
-    logger.info("Output model metrics: %s", METRICS_OUTPUT_PATH)
+    logger.info("Input training dataset: %s", train_input_path)
+    logger.info("Input testing dataset: %s", test_input_path)
+    logger.info("Output model artifact: %s", model_output_path)
+    logger.info("Output model metrics: %s", metrics_output_path)
 
-    if not TRAIN_INPUT_PATH.exists():
-        raise FileNotFoundError(f"Phase 6 training dataset not found: {TRAIN_INPUT_PATH}")
-    if not TEST_INPUT_PATH.exists():
-        raise FileNotFoundError(f"Phase 6 testing dataset not found: {TEST_INPUT_PATH}")
+    if not train_input_path.exists():
+        raise FileNotFoundError(f"Phase 6 training dataset not found: {train_input_path}")
+    if not test_input_path.exists():
+        raise FileNotFoundError(f"Phase 6 testing dataset not found: {test_input_path}")
 
-    train_df = pd.read_parquet(TRAIN_INPUT_PATH)
-    test_df = pd.read_parquet(TEST_INPUT_PATH)
+    train_df = pd.read_parquet(train_input_path)
+    test_df = pd.read_parquet(test_input_path)
     _validate_phase6_input(train_df, "train")
     _validate_phase6_input(test_df, "test")
 
@@ -84,10 +97,10 @@ def run_phase6() -> None:
         "r2": r2,
     }
 
-    MODEL_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    METRICS_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump(model, MODEL_OUTPUT_PATH)
-    METRICS_OUTPUT_PATH.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    model_output_path.parent.mkdir(parents=True, exist_ok=True)
+    metrics_output_path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(model, model_output_path)
+    metrics_output_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
     logger.info(
         "Phase 6 summary | train rows: %s | test rows: %s | MAE: %.6f | RMSE: %.6f | R2: %.6f",

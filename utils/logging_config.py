@@ -5,6 +5,7 @@ from config import (
     EXPERIMENT_LOG_FILE,
     LOGS_PATH,
     PHASE1_LOG_FILE,
+    PHASE11_LOG_FILE,
     PHASE2_LOG_FILE,
     PHASE3_LOG_FILE,
     PHASE4_LOG_FILE,
@@ -79,4 +80,10 @@ def configure_logging(phases: list[int] | None = None) -> None:
         phase_handler = logging.FileHandler(logs_dir / PHASE7_LOG_FILE, mode="a")
         phase_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
         phase_handler.addFilter(LoggerPrefixFilter(("simulation.simulator",)))
+        root_logger.addHandler(phase_handler)
+
+    if 11 in selected_phases:
+        phase_handler = logging.FileHandler(logs_dir / PHASE11_LOG_FILE, mode="a")
+        phase_handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
+        phase_handler.addFilter(LoggerPrefixFilter(("evaluation.metrics", "evaluation.statistical_tests")))
         root_logger.addHandler(phase_handler)

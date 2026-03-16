@@ -5,9 +5,8 @@ import sys
 import pandas as pd
 
 # Ensure project-root imports work when executing this file directly.
-PROJECT_ROOT_PATH = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT_PATH) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT_PATH))
+if str(Path(__file__).resolve().parents[1]) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import (
     CLEAN_DATA_PATH,
@@ -35,11 +34,15 @@ from config import (
 from preprocessing.common import configured_root, ensure_required_columns
 from utils.data_contracts import validate_clean_transactions
 
-CONFIGURED_ROOT_PATH = configured_root(PROJECT_ROOT)
-CSV_PATH = CONFIGURED_ROOT_PATH / RAW_DATA_PATH / RAW_DATA_FILE
-OUTPUT_PATH = CONFIGURED_ROOT_PATH / CLEAN_DATA_PATH
-
 logger = logging.getLogger(__name__)
+
+
+def _csv_path() -> Path:
+    return configured_root(PROJECT_ROOT) / RAW_DATA_PATH / RAW_DATA_FILE
+
+
+def _output_path() -> Path:
+    return configured_root(PROJECT_ROOT) / CLEAN_DATA_PATH
 
 
 def _validate_columns(df: pd.DataFrame) -> None:
@@ -154,15 +157,17 @@ def _run_quality_checks(df: pd.DataFrame) -> None:
 
 
 def run_phase2() -> None:
+    csv_path = _csv_path()
+    output_path = _output_path()
     logger.info("Phase 2 data cleaning started.")
-    logger.info("Input dataset: %s", CSV_PATH)
-    logger.info("Output dataset: %s", OUTPUT_PATH)
+    logger.info("Input dataset: %s", csv_path)
+    logger.info("Output dataset: %s", output_path)
 
-    if not CSV_PATH.exists():
-        logger.error("Dataset missing at %s", CSV_PATH)
-        raise FileNotFoundError(f"Dataset not found: {CSV_PATH}")
+    if not csv_path.exists():
+        logger.error("Dataset missing at %s", csv_path)
+        raise FileNotFoundError(f"Dataset not found: {csv_path}")
 
-    raw_df = pd.read_csv(CSV_PATH)
+    raw_df = pd.read_csv(csv_path)
     _validate_columns(raw_df)
 
     df = raw_df.rename(columns=RAW_TO_CANONICAL_COLUMNS).copy()
@@ -219,9 +224,9 @@ def run_phase2() -> None:
     _run_quality_checks(df)
     validate_clean_transactions(df)
 
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(OUTPUT_PATH, index=False)
-    logger.info("Phase 2 data cleaning completed. Saved cleaned data to %s", OUTPUT_PATH)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_parquet(output_path, index=False)
+    logger.info("Phase 2 data cleaning completed. Saved cleaned data to %s", output_path)
 
 
 if __name__ == "__main__":
