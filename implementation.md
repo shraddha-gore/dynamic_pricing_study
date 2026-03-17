@@ -55,6 +55,7 @@ Data -> Inspection -> Cleaning -> Product Selection -> Aggregation -> Feature En
 - Full workflow (`python main.py --workflow full`) runs Phases 1-6 only
 - Phase 7 requires explicit simulation mode: `python main.py --simulate {rule|ml|hybrid|all}`
 - Phase 11 requires explicit evaluation mode: `python main.py --evaluate`
+- Phase 12 dashboard runs separately from the CLI workflow: `streamlit run dashboard/app.py`
 - CLI mode precedence follows the executable branch order in `main.py`: `--evaluate` -> `--simulate` -> `--phase` -> `--workflow`
 
 ## Implementation Best Practices (All Phases)
@@ -124,7 +125,7 @@ Centralize in `config.py`:
 - Canonical columns (`snake_case`): `COL_INVOICE`, `COL_STOCK_CODE`, `COL_DESCRIPTION`, `COL_QUANTITY`, `COL_PRICE`, `COL_INVOICE_DATE`, `COL_CUSTOMER_ID`, `COL_COUNTRY`
 - Raw-to-canonical mapping: `RAW_TO_CANONICAL_COLUMNS`
 - Phase output paths: `CLEAN_DATA_PATH`, `SELECTED_PRODUCTS_PATH`, `DAILY_AGG_DATA_PATH`, `FEATURE_TRAIN_DATA_PATH`, `FEATURE_TEST_DATA_PATH`, `PHASE6_MODEL_ARTIFACT_PATH`, `PHASE6_METRICS_PATH`, `PHASE11_STRATEGY_METRICS_PATH`, `PHASE11_STRATEGY_SUMMARY_PATH`, `PHASE11_STATISTICAL_TESTS_PATH`
-- Report/log paths and files: `PHASE1_REPORT_FILE`, `PHASE1_LOG_FILE`, `PHASE2_LOG_FILE`, `PHASE3_REPORT_FILE`, `PHASE3_LOG_FILE`, `PHASE4_LOG_FILE`, `PHASE5_LOG_FILE`, `PHASE6_LOG_FILE`, `PHASE7_LOG_FILE`, `PHASE11_LOG_FILE`, `EXPERIMENT_LOG_FILE`
+- Report/log paths and files: `PHASE1_REPORT_FILE`, `PHASE1_LOG_FILE`, `PHASE2_LOG_FILE`, `PHASE3_REPORT_FILE`, `PHASE3_LOG_FILE`, `PHASE4_LOG_FILE`, `PHASE5_LOG_FILE`, `PHASE6_LOG_FILE`, `PHASE7_LOG_FILE`, `PHASE11_LOG_FILE`, `PHASE12_LOG_FILE`, `EXPERIMENT_LOG_FILE`
 - Frozen output schemas: `PHASE2_FROZEN_COLUMNS`, `PHASE3_FROZEN_COLUMNS`, `PHASE4_FROZEN_COLUMNS`, `PHASE5_FROZEN_COLUMNS`
 - Frozen Phase 5 model feature schema: `PHASE5_FROZEN_FEATURE_COLUMNS`
 - Phase 5 calendar schema helpers: `PHASE5_WEEKDAY_COLUMNS`, `PHASE5_MONTH_COLUMNS`
@@ -138,6 +139,7 @@ Centralize in `config.py`:
 - Phase 7 paths: `SIMULATION_CANDIDATE_PATHS`, `SIMULATION_RESULTS_PATHS`
 - Phase 7 frozen schemas: `PHASE7_CANDIDATE_FROZEN_COLUMNS`, `PHASE7_RESULT_FROZEN_COLUMNS`
 - Phase 11 evaluation constants: `PHASE11_METRIC_COLUMNS`, `PHASE11_PAIRING_KEYS`, `PHASE11_COMPARISONS`
+- Phase 12 dashboard constants: `PHASE12_SUMMARY_METRICS`, `PHASE12_PRODUCT_METRIC_COLUMNS`, `PHASE12_PRODUCT_COMPARISON_METRICS`, `PHASE12_STATISTICAL_TEST_LABELS`, `PHASE12_TEST_LABELS`
 
 ## 3. Phase 0 - Project Structure Initialization
 
@@ -949,42 +951,143 @@ Instead of automatic percentile trimming:
   - `results/metrics/strategy_summary.json`
   - `results/metrics/statistical_tests.json`
 - The dashboard must treat these artifacts as read-only analytical outputs and must not recompute metrics or statistical tests
+
 ## 15. Phase 12 - Dashboard
 
 ### Objective
-- Provide Streamlit-based visualization of results
+- Provide a Streamlit-based dashboard for visual comparison of pricing strategies using precomputed evaluation outputs only
 
 ### Rationale
-- The dashboard translates technical outputs into decision-ready comparisons for non-technical stakeholders
-- Keeping it inference-only avoids accidental retraining drift during result review
+- The dashboard translates Phase 11 analytical outputs into an interpretable, decision-oriented interface for stakeholders
+- Visualization enables intuitive comparison of revenue performance and pricing stability across strategies
+- A read-only dashboard preserves strict separation between computation (Phases 1-11) and presentation, preventing unintended recomputation or analytical drift
 
-### Implementation File
+### Implementation Files
 - `dashboard/app.py`
+- `config.py`
+- `utils/logging_config.py`
 
 ### Outputs
-- Streamlit dashboard app and supporting visuals (paths TBD)
+- Streamlit dashboard application served locally
+- No additional machine-readable artifacts are produced
+- `logs/phase12.log`
 
 ### Status
-- Planned
+- Completed
 
-### Planned Scope
-- Visualization only
-- No model training in dashboard runtime
-- Dashboard is strictly read-only and loads precomputed Phase 11 outputs
-- No simulations or model predictions are executed in dashboard runtime
-- Compare strategy trajectories and KPI summaries for revenue and stability
-- Use Phase 11 artifacts as the single analytical source of truth; do not duplicate metric or statistical logic in the UI layer
-- Include core views:
-  - strategy revenue comparison
-  - price trajectory comparison
-  - price volatility comparison
-  - daily revenue distribution
+### Implemented Scope
+- Add a Streamlit Phase 12 dashboard implemented as a single-page analytical view
+- Load only the frozen Phase 11 artifacts:
+  - `results/metrics/strategy_metrics.parquet`
+  - `results/metrics/strategy_summary.json`
+  - `results/metrics/statistical_tests.json`
+- Validate file existence and expected schema/key contracts before rendering
+- Enforce `metric_level == "product"` for product-level comparison and boxplot sections
+- Use deterministic default product selection via `sorted(unique_stock_codes)[0]`
+- Render strategy KPI summary cards and tabular overview from `strategy_summary.json`
+- Render revenue comparison bar charts using Phase 11 summary metrics
+- Render pricing stability comparison bar charts using Phase 11 summary metrics
+- Replace the previously planned trajectory section with product-level strategy comparison for a selected `stock_code`
+- Render a required boxplot of product-level `mean_daily_revenue` by strategy and an additional boxplot of `mean_absolute_change`
+- Render a statistical test table from `results/metrics/statistical_tests.json` with significance flag `p_value < 0.05`
+- Centralize the Phase 12 log file constant and dashboard display/validation constants in `config.py`
+- Register dashboard logging in `utils/logging_config.py`
+
+### Input Artifacts
+- `results/metrics/strategy_metrics.parquet`
+- `results/metrics/strategy_summary.json`
+- `results/metrics/statistical_tests.json`
+- All inputs are treated as read-only and must not be modified or recomputed
+- Phase 12 must not read any files under `results/simulation/`
+
+### Dashboard Design Principles
+- Visualization-only layer with no metric or statistical-test recomputation
+- No model loading, simulation execution, or Phase 7 result access
+- Single source of truth is the frozen Phase 11 artifact set
+- Layout presents headline metrics first, then supporting comparative analysis
+- Interactivity is intentionally minimal and limited to product selection for product-level views
+
+### Dashboard Structure
+- Section 1 - Strategy KPI Summary
+  - Display headline metrics using `strategy_summary.json`
+  - Metrics:
+    - `total_revenue`
+    - `mean_daily_revenue`
+    - `mean_absolute_change`
+    - `price_std`
+    - `max_price_jump`
+    - `change_frequency`
+- Section 2 - Revenue Comparison
+  - Bar chart: `total_revenue` by strategy
+  - Bar chart: `mean_daily_revenue` by strategy
+- Section 3 - Pricing Stability Comparison
+  - Bar chart: `mean_absolute_change` by strategy
+  - Bar chart: `price_std` by strategy
+  - Bar chart: `max_price_jump` by strategy
+  - Bar chart: `change_frequency` by strategy
+- Section 4 - Product-Level Strategy Comparison
+  - Product selector based on `stock_code`
+  - Deterministic default selection: `sorted(unique_stock_codes)[0]`
+  - Compare selected `stock_code` across strategies using product-level rows from `strategy_metrics.parquet`
+  - Metrics displayed:
+    - `total_revenue`
+    - `mean_daily_revenue`
+    - `mean_absolute_change`
+    - `price_std`
+    - `max_price_jump`
+    - `change_frequency`
+- Section 5 - Product-Level Distribution Analysis
+  - Boxplot of product-level `mean_daily_revenue` by strategy
+  - Boxplot of product-level `mean_absolute_change` by strategy
+  - Always filter to `metric_level == "product"`
+- Section 6 - Statistical Test Results
+  - Display statistical outputs from `results/metrics/statistical_tests.json`
+  - Table columns:
+    - `Comparison`
+    - `Metric`
+    - `Test`
+    - `Statistic`
+    - `p-value`
+    - `Sample Size`
+    - `Significant`
+  - Significance rule: `p_value < 0.05`
+
+### Execution
+- Run the dashboard with `streamlit run dashboard/app.py`
+- Execution behaviour:
+  - load Phase 11 artifacts
+  - validate file existence and contracts
+  - render visualizations
+  - write dashboard logs only
 
 ### Frozen Results
-- Pending phase completion; dashboard views and snapshot outputs will be frozen after Phase 12 execution is finalized
+- Latest verified command: `timeout 10s streamlit run dashboard/app.py --server.headless true --server.port 8501`
+- Verified input artifacts:
+  - `results/metrics/strategy_metrics.parquet`
+  - `results/metrics/strategy_summary.json`
+  - `results/metrics/statistical_tests.json`
+- Verified product-level metrics rows available to the dashboard: 15
+- Verified strategy summary strategies: `hybrid`, `ml`, `rule`
+- Deterministic default `stock_code`: `22086`
+- Verified statistical test table rows: 8
+
+### Latest Verified Run Summary
+- Dashboard loads successfully from Phase 11 outputs only
+- Product-level filtering is enforced for Section 4 and Section 5
+- No simulation artifacts are loaded by the dashboard
+- Dashboard logging is registered at `logs/phase12.log`
 
 ### Phase Handoff Contract
-- Consumes Phase 11 comparative outputs and exposes read-only visual interpretation for stakeholders
+- Consumes only Phase 11 outputs:
+  - `results/metrics/strategy_metrics.parquet`
+  - `results/metrics/strategy_summary.json`
+  - `results/metrics/statistical_tests.json`
+- Must not:
+  - recompute metrics
+  - rerun simulations
+  - read `results/simulation/*`
+  - modify input artifacts
+- Provides a read-only visual interpretation layer for Phase 13 robustness work and final reporting
 
 ## 16. Phase 13 - Robustness Checks
 
@@ -1092,7 +1195,7 @@ Instead of automatic percentile trimming:
 - Consumes the Phase 14 frozen package and certifies end-to-end reproducibility status
 
 ## Current Implementation Note
-- As of March 16, 2026, executable implementation coverage is Phases 1-11
+- As of March 17, 2026, executable implementation coverage is Phases 1-12
 - Latest completed workflow run: `python main.py --workflow full` (Phases 1-6)
 - Latest simulation runs by strategy:
   - `rule` -> 2026-03-16
@@ -1100,9 +1203,15 @@ Instead of automatic percentile trimming:
   - `hybrid` -> 2026-03-16
 - Explicit multi-strategy simulation mode: `python main.py --simulate all`
 - Latest evaluation run: `python main.py --evaluate` -> 2026-03-16
+- Latest dashboard verification run: `timeout 10s streamlit run dashboard/app.py --server.headless true --server.port 8501` -> 2026-03-17
 - Implemented explicit evaluation mode: `python main.py --evaluate`
-- Internal refactor coverage updated on 2026-03-16 for CLI flow, shared artifact loading, logging registry, simulation decomposition, and evaluation readability
-- Phases 12-15 remain planned and will be added incrementally
+- Implemented read-only Phase 12 dashboard that consumes only:
+  - `results/metrics/strategy_metrics.parquet`
+  - `results/metrics/strategy_summary.json`
+  - `results/metrics/statistical_tests.json`
+- Dashboard runtime must not read `results/simulation/*` or recompute metrics/statistical tests
+- Internal refactor coverage updated on 2026-03-17 for dashboard delivery, read-only artifact loading, and Phase 12 logging support
+- Phases 13-15 remain planned and will be added incrementally
 
 ## Final Frozen Design Decisions
 - Dataset restricted to 2010-2011 only

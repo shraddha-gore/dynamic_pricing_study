@@ -53,6 +53,7 @@ PHASE5_LOG_FILE = "phase5.log"
 PHASE6_LOG_FILE = "phase6.log"
 PHASE7_LOG_FILE = "phase7.log"
 PHASE11_LOG_FILE = "phase11.log"
+PHASE12_LOG_FILE = "phase12.log"
 EXPERIMENT_LOG_FILE = "experiment.log"
 
 
@@ -290,4 +291,32 @@ PHASE11_PAIRING_KEYS = [COL_STOCK_CODE, "invoice_day"]
 PHASE11_COMPARISONS = {
     "hybrid_vs_ml": ("hybrid", "ml"),
     "hybrid_vs_rule": ("hybrid", "rule"),
+}
+
+
+# -----------------------------
+# Phase 12 constants
+# -----------------------------
+PHASE12_SUMMARY_METRICS = (
+    "total_revenue",
+    "mean_daily_revenue",
+    "mean_absolute_change",
+    "price_std",
+    "max_price_jump",
+    "change_frequency",
+)
+PHASE12_PRODUCT_METRIC_COLUMNS = [
+    COL_STOCK_CODE,
+    "strategy",
+    "metric_level",
+    *PHASE12_SUMMARY_METRICS,
+]
+PHASE12_PRODUCT_COMPARISON_METRICS = list(PHASE12_SUMMARY_METRICS)
+PHASE12_STATISTICAL_TEST_LABELS = {
+    "revenue_tests": "predicted_revenue",
+    "stability_tests": "abs_price_change",
+}
+PHASE12_TEST_LABELS = {
+    "paired_ttest": "Paired t-test",
+    "wilcoxon": "Wilcoxon signed-rank test",
 }

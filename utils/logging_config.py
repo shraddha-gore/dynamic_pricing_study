@@ -6,6 +6,7 @@ from config import (
     LOGS_PATH,
     PHASE1_LOG_FILE,
     PHASE11_LOG_FILE,
+    PHASE12_LOG_FILE,
     PHASE2_LOG_FILE,
     PHASE3_LOG_FILE,
     PHASE4_LOG_FILE,
@@ -45,6 +46,7 @@ def _phase_handler_specs() -> tuple[tuple[int, str, tuple[str, ...]], ...]:
         (6, PHASE6_LOG_FILE, ("models.demand_model",)),
         (7, PHASE7_LOG_FILE, ("simulation.simulator",)),
         (11, PHASE11_LOG_FILE, ("evaluation.metrics", "evaluation.statistical_tests", "utils.simulation_artifacts")),
+        (12, PHASE12_LOG_FILE, ("dashboard.app",)),
     )
 
 
