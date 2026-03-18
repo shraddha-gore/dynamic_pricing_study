@@ -292,6 +292,24 @@ PHASE11_COMPARISONS = {
     "hybrid_vs_ml": ("hybrid", "ml"),
     "hybrid_vs_rule": ("hybrid", "rule"),
 }
+PHASE11_SUMMARY_SCHEMA = {
+    "total_revenue": float,
+    "mean_daily_revenue": float,
+    "mean_absolute_change": float,
+    "price_std": float,
+    "max_price_jump": float,
+    "change_frequency": float,
+}
+PHASE11_TEST_SECTION_METRICS = {
+    "revenue_tests": "predicted_revenue",
+    "stability_tests": "abs_price_change",
+}
+PHASE11_TEST_NAMES = ("paired_ttest", "wilcoxon")
+PHASE11_TESTS_SCHEMA = {
+    "statistic": float,
+    "p_value": float,
+    "sample_size": int,
+}
 
 
 # -----------------------------
@@ -312,10 +330,7 @@ PHASE12_PRODUCT_METRIC_COLUMNS = [
     *PHASE12_SUMMARY_METRICS,
 ]
 PHASE12_PRODUCT_COMPARISON_METRICS = list(PHASE12_SUMMARY_METRICS)
-PHASE12_STATISTICAL_TEST_LABELS = {
-    "revenue_tests": "predicted_revenue",
-    "stability_tests": "abs_price_change",
-}
+PHASE12_STATISTICAL_TEST_LABELS = dict(PHASE11_TEST_SECTION_METRICS)
 PHASE12_TEST_LABELS = {
     "paired_ttest": "Paired t-test",
     "wilcoxon": "Wilcoxon signed-rank test",

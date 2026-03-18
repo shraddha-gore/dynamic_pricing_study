@@ -13,6 +13,7 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 
 from config import (
     COL_STOCK_CODE,
+    PHASE7_STRATEGIES,
     PHASE11_STATISTICAL_TESTS_PATH,
     PHASE11_STRATEGY_METRICS_PATH,
     PHASE11_STRATEGY_SUMMARY_PATH,
@@ -24,6 +25,7 @@ from config import (
     PROJECT_ROOT,
 )
 from preprocessing.common import configured_path
+from utils.data_contracts import validate_phase11_metrics, validate_phase11_summary, validate_phase11_tests
 from utils.logging_config import configure_logging
 
 logger = logging.getLogger("dashboard.app")
@@ -51,11 +53,7 @@ def _ensure_file_exists(path_label: str, path_value: str) -> None:
         raise FileNotFoundError(f"Missing required Phase 11 artifact: {path_label} -> {path}")
 
 
-def _validate_strategy_metrics(metrics_df: pd.DataFrame) -> pd.DataFrame:
-    missing_columns = [column for column in PHASE12_PRODUCT_METRIC_COLUMNS if column not in metrics_df.columns]
-    if missing_columns:
-        raise ValueError(f"strategy_metrics.parquet is missing required columns: {missing_columns}")
-
+def _phase12_product_metrics_view(metrics_df: pd.DataFrame) -> pd.DataFrame:
     product_metrics_df = metrics_df.loc[
         metrics_df["metric_level"] == "product",
         PHASE12_PRODUCT_METRIC_COLUMNS,
@@ -63,43 +61,18 @@ def _validate_strategy_metrics(metrics_df: pd.DataFrame) -> pd.DataFrame:
     if product_metrics_df.empty:
         raise ValueError("strategy_metrics.parquet does not contain any product-level rows.")
 
+    actual_strategies = set(product_metrics_df["strategy"].astype(str).unique().tolist())
+    expected_strategies = set(PHASE7_STRATEGIES)
+    if actual_strategies != expected_strategies:
+        raise ValueError(
+            "Phase 12 product-level metrics validation failed: strategy mismatch after product filtering.\n"
+            f"Expected strategies: {sorted(expected_strategies)}\n"
+            f"Actual strategies:   {sorted(actual_strategies)}"
+        )
+
     product_metrics_df[COL_STOCK_CODE] = product_metrics_df[COL_STOCK_CODE].astype(str)
     product_metrics_df = product_metrics_df.sort_values([COL_STOCK_CODE, "strategy"], kind="mergesort").reset_index(drop=True)
     return product_metrics_df
-
-
-def _validate_strategy_summary(summary_payload: dict[str, dict[str, float]]) -> dict[str, dict[str, float]]:
-    if not summary_payload:
-        raise ValueError("strategy_summary.json is empty.")
-
-    for strategy_name, metric_values in summary_payload.items():
-        missing_metrics = [metric for metric in PHASE12_SUMMARY_METRICS if metric not in metric_values]
-        if missing_metrics:
-            raise ValueError(
-                f"strategy_summary.json is missing metrics for strategy '{strategy_name}': {missing_metrics}"
-            )
-    return summary_payload
-
-
-def _validate_statistical_tests(statistical_payload: dict[str, dict[str, dict[str, dict[str, float]]]]) -> dict[str, dict[str, dict[str, dict[str, float]]]]:
-    expected_sections = set(PHASE12_STATISTICAL_TEST_LABELS)
-    missing_sections = expected_sections.difference(statistical_payload)
-    if missing_sections:
-        raise ValueError(f"statistical_tests.json is missing sections: {sorted(missing_sections)}")
-
-    for section_name in expected_sections:
-        comparisons = statistical_payload[section_name]
-        if not comparisons:
-            raise ValueError(f"statistical_tests.json section '{section_name}' is empty.")
-        for comparison_name, tests in comparisons.items():
-            for test_name, test_values in tests.items():
-                missing_fields = [field for field in ("statistic", "p_value", "sample_size") if field not in test_values]
-                if missing_fields:
-                    raise ValueError(
-                        f"statistical_tests.json comparison '{comparison_name}' test '{test_name}' "
-                        f"is missing fields: {missing_fields}"
-                    )
-    return statistical_payload
 
 
 @st.cache_data(show_spinner=False)
@@ -116,10 +89,14 @@ def load_dashboard_inputs() -> tuple[pd.DataFrame, dict[str, dict[str, float]], 
         configured_path(PROJECT_ROOT, PHASE11_STATISTICAL_TESTS_PATH).read_text(encoding="utf-8")
     )
 
+    validate_phase11_metrics(metrics_df)
+    validate_phase11_summary(summary_payload)
+    validate_phase11_tests(statistical_payload)
+
     return (
-        _validate_strategy_metrics(metrics_df),
-        _validate_strategy_summary(summary_payload),
-        _validate_statistical_tests(statistical_payload),
+        _phase12_product_metrics_view(metrics_df),
+        summary_payload,
+        statistical_payload,
     )
 
 

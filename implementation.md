@@ -138,10 +138,10 @@ Centralize in `config.py`:
 - Phase 7 params: `PHASE7_GRID_POINTS`, `PHASE7_STRATEGIES`
 - Phase 7 paths: `SIMULATION_CANDIDATE_PATHS`, `SIMULATION_RESULTS_PATHS`
 - Phase 7 frozen schemas: `PHASE7_CANDIDATE_FROZEN_COLUMNS`, `PHASE7_RESULT_FROZEN_COLUMNS`
-- Phase 11 evaluation constants: `PHASE11_METRIC_COLUMNS`, `PHASE11_PAIRING_KEYS`, `PHASE11_COMPARISONS`
+- Phase 11 evaluation constants: `PHASE11_METRIC_COLUMNS`, `PHASE11_PAIRING_KEYS`, `PHASE11_COMPARISONS`, `PHASE11_SUMMARY_SCHEMA`, `PHASE11_TEST_SECTION_METRICS`, `PHASE11_TEST_NAMES`, `PHASE11_TESTS_SCHEMA`
 - Phase 12 dashboard constants: `PHASE12_SUMMARY_METRICS`, `PHASE12_PRODUCT_METRIC_COLUMNS`, `PHASE12_PRODUCT_COMPARISON_METRICS`, `PHASE12_STATISTICAL_TEST_LABELS`, `PHASE12_TEST_LABELS`
 
-## 3. Phase 0 - Project Structure Initialization
+## 3. Phase 0 - Project Foundations
 
 ### Objective
 - Create baseline project architecture and reproducibility controls
@@ -150,7 +150,7 @@ Centralize in `config.py`:
 - A stable directory/module layout and centralized configuration are prerequisites for deterministic phase-by-phase execution
 - Early reproducibility controls reduce rework when later phases are added
 
-### Implementation File
+### Implementation Files
 - N/A (initial scaffolding and structure setup)
 
 ### Outputs
@@ -184,7 +184,7 @@ Centralize in `config.py`:
 - Inspection defines evidence-based cleaning rules and avoids assumptions that could bias downstream demand modeling
 - A frozen inspection report creates an auditable basis for Phase 2 decisions
 
-### Implementation File
+### Implementation Files
 - `preprocessing/raw_inspection.py`
 
 ### Outputs
@@ -219,7 +219,7 @@ Centralize in `config.py`:
 - Phase 2 cleaning rules must remain justified by the frozen Phase 1 inspection evidence
 - Phase 1 produces descriptive evidence only and must not be used as a machine-readable downstream input beyond the frozen report artifact
 
-## 5. Phase 2 - Data Cleaning Pipeline
+## 5. Phase 2 - Transaction Cleaning
 
 ### Objective
 - Produce an analytically valid retail transactional dataset suitable for downstream demand modelling and pricing analysis
@@ -228,7 +228,7 @@ Centralize in `config.py`:
 - Cleaning decisions directly shape model validity and pricing conclusions, so rules must prioritize retail realism and analytical integrity
 - A transparent, rule-based cleaning contract prevents hidden preprocessing drift in downstream phases
 
-### Implementation File
+### Implementation Files
 - `preprocessing/clean_data.py`
 
 ### Outputs
@@ -357,14 +357,11 @@ Instead of automatic percentile trimming:
 - Logged outputs: `logs/phase2.log`
 - Downstream processed schema is the canonical `snake_case` transaction contract
 
-### Output Dataset
-- `data/processed/clean_transactions.parquet`
-
 ### Phase Handoff Contract
 - Downstream phases may assume cleaned data is UK-only, non-cancelled, non-negative quantity, positive price, and excludes service/admin stock codes
 - Schema is normalized to canonical `snake_case` column naming
 
-## 6. Phase 3 - Product Selection
+## 6. Phase 3 - Product Universe Selection
 
 ### Objective
 - Select five stable products for demand modeling and dynamic pricing simulation
@@ -373,7 +370,7 @@ Instead of automatic percentile trimming:
 - Restricting to a small set of active, price-varying products controls experiment complexity while preserving meaningful demand-price variation
 - Revenue-ranked selection focuses the study on commercially relevant SKUs
 
-### Implementation File
+### Implementation Files
 - `preprocessing/select_products.py`
 
 ### Outputs
@@ -410,7 +407,7 @@ Instead of automatic percentile trimming:
 - Only the frozen five `stock_code` values in `selected_products.parquet` are valid for Phase 4+
 - Product universe must not change unless Phase 3 is intentionally rerun and re-frozen
 
-## 7. Phase 4 - Daily Aggregation
+## 7. Phase 4 - Daily Product Aggregation
 
 ### Objective
 - Aggregate transactional data to daily product-level time series for Phase 3 selected products
@@ -419,7 +416,7 @@ Instead of automatic percentile trimming:
 - Daily granularity balances responsiveness and stability for pricing simulation
 - Aggregation removes invoice-level noise while preserving demand and price signals required for lag features
 
-### Implementation File
+### Implementation Files
 - `preprocessing/aggregate_daily.py`
 
 ### Outputs
@@ -459,7 +456,7 @@ Instead of automatic percentile trimming:
 - Phase 5 expects one row per (`stock_code`, `invoice_day`) with `daily_units`, `avg_daily_price`, `daily_revenue`
 - Chronological ordering by `invoice_day` is required for lag feature correctness
 
-## 8. Phase 5 - Feature Engineering
+## 8. Phase 5 - Demand Feature Engineering
 
 ### Objective
 - Create model-ready demand and seasonality features
@@ -469,7 +466,7 @@ Instead of automatic percentile trimming:
 - Calendar one-hot features allow the linear model to capture non-linear weekday/month effects without imposing ordinal distance assumptions
 - Per-product chronological split prevents leakage from future observations into training
 
-### Implementation File
+### Implementation Files
 - `preprocessing/feature_engineering.py`
 
 ### Outputs
@@ -531,7 +528,7 @@ Instead of automatic percentile trimming:
 - A single global demand model isolates strategy effects in later comparisons
 - Linear regression provides an interpretable baseline demand-response model appropriate for SME retail analysis
 
-### Implementation File
+### Implementation Files
 - `models/demand_model.py`
 
 ### Outputs
@@ -576,7 +573,7 @@ Instead of automatic percentile trimming:
 - No retraining or feature modification is permitted after Phase 6 completion
 - All simulations must rely on this frozen model artifact to generate demand predictions
 
-## 10. Phase 7 - Simulation Engine
+## 10. Phase 7 - Shared Simulation Engine
 
 ### Objective
 - Simulate day-level pricing decisions using predicted demand only
@@ -587,7 +584,7 @@ Instead of automatic percentile trimming:
 - The simulator provides the controlled experimental environment in which pricing strategies operate
 - Strategies do not compute demand or revenue directly; they only select a price from candidate options generated by the simulator
 
-### Implementation File
+### Implementation Files
 - `simulation/simulator.py`
 
 ### Outputs
@@ -626,11 +623,20 @@ Instead of automatic percentile trimming:
   5. Unique products: 5
   6. Verified command: `venv/bin/python main.py --simulate rule`
 
+### Latest Verified Run Summary
+- Verified command: `venv/bin/python main.py --simulate rule`
+- Latest verified baseline simulation snapshot:
+  - test rows: 266
+  - candidate rows: 1,330
+  - result rows: 266
+  - date range: 2011-10-02 to 2011-12-09
+  - unique products: 5
+
 ### Phase Handoff Contract
 - Phase 8-10 strategies must consume the Phase 7 candidate table and approved simulator context (`base_price`, `row`, `strategy_name`; Hybrid additionally receives `previous_price`) and return a single `chosen_price` to the simulator
 - Phase 11 evaluation must consume Phase 7 result outputs; no strategy may bypass the simulator
 
-## 11. Phase 8 - Rule-Based Strategy
+## 11. Phase 8 - Rule-Based Pricing Strategy
 
 ### Objective
 - Implement deterministic heuristic pricing baseline
@@ -639,7 +645,7 @@ Instead of automatic percentile trimming:
 - The rule-based policy serves as an operationally intuitive baseline that SMEs can understand and implement quickly
 - Determinism provides a stable comparator for ML and Hybrid strategies
 
-### Implementation File
+### Implementation Files
 - `strategies/rule_based.py`
 
 ### Outputs
@@ -670,10 +676,19 @@ Instead of automatic percentile trimming:
      - `results/simulation/rule_results.parquet`
   5. Verified command: `venv/bin/python main.py --simulate rule`
 
+### Latest Verified Run Summary
+- Verified command: `venv/bin/python main.py --simulate rule`
+- Output artifacts:
+  - `results/simulation/rule_candidates.parquet`
+  - `results/simulation/rule_results.parquet`
+- Verified result rows: 266
+- Verified date range: 2011-10-02 to 2011-12-09
+- Verified unique products: 5
+
 ### Phase Handoff Contract
 - Consumes Phase 7 candidate tables and approved simulator context (`base_price`, `row`, `strategy_name`) and emits chosen-price simulation results for Phase 11 evaluation
 
-## 12. Phase 9 - Machine Learning Strategy
+## 12. Phase 9 - Machine Learning Pricing Strategy
 
 ### Objective
 - Implement a revenue-maximizing pricing strategy based solely on model predictions
@@ -684,7 +699,7 @@ Instead of automatic percentile trimming:
 - No operational constraints are applied so that volatility effects can be observed directly
 - The strategy provides the upper bound benchmark against which the Hybrid strategy can be evaluated
 
-### Implementation File
+### Implementation Files
 - `strategies/ml_pricing.py`
 
 ### Outputs
@@ -739,7 +754,7 @@ Instead of automatic percentile trimming:
 - Consumes Phase 7 candidate tables and approved simulator context (`base_price`, `row`, `strategy_name`)
 - Emits chosen-price simulation results for Phase 11 evaluation
 
-## 13. Phase 10 - Hybrid Strategy
+## 13. Phase 10 - Hybrid Pricing Strategy
 ### Objective
 - Combine machine learning optimisation with operational price stability controls
 
@@ -749,7 +764,7 @@ Instead of automatic percentile trimming:
 - This reflects real-world pricing governance where algorithmic recommendations are moderated by operational limits
 - The strategy tests whether revenue gains from ML can be retained while reducing price volatility
 
-### Implementation File
+### Implementation Files
 - `strategies/hybrid_pricing.py`
 
 ### Outputs
@@ -828,11 +843,22 @@ Instead of automatic percentile trimming:
   - `results/simulation/hybrid_results.parquet`
 - Verified command: `venv/bin/python main.py --simulate hybrid`
 
+### Latest Verified Run Summary
+- Verified command: `venv/bin/python main.py --simulate hybrid`
+- Output artifacts:
+  - `results/simulation/hybrid_candidates.parquet`
+  - `results/simulation/hybrid_results.parquet`
+- Verified test rows: 266
+- Verified candidate rows: 1,330
+- Verified result rows: 266
+- Verified date range: 2011-10-02 to 2011-12-09
+- Verified unique products: 5
+
 ### Phase Handoff Contract
 - Consumes Phase 7 candidate tables and simulator context (`base_price`, `previous_price`, `row`, `strategy_name`)
 - Emits chosen-price simulation results for Phase 11 evaluation
 
-## 14. Phase 11 - Metrics and Statistical Testing
+## 14. Phase 11 - Strategy Evaluation and Statistical Testing
 
 ### Objective
 - Quantitatively evaluate and compare pricing strategies in terms of revenue performance and pricing stability
@@ -848,6 +874,7 @@ Instead of automatic percentile trimming:
 - `evaluation/metrics.py`
 - `evaluation/statistical_tests.py`
 - `config.py`
+- `utils/data_contracts.py`
 - `utils/logging_config.py`
 - `utils/simulation_artifacts.py`
 
@@ -870,8 +897,10 @@ Instead of automatic percentile trimming:
 - Persist headline strategy summary JSON for downstream dashboard/reporting use
 - Run paired t-tests and Wilcoxon signed-rank tests for `hybrid_vs_ml` and `hybrid_vs_rule`
 - Centralize Phase 11 artifact paths, log file, pairing keys, comparison set, and metric schema constants in `config.py`
+- Centralize shared Phase 11 summary/test JSON schema constants in `config.py` for downstream read-only consumers
 - Resolve runtime file paths from `config.py` instead of keeping module-level path constants in phase modules
 - Centralize shared Phase 7 result loading and validation in `utils/simulation_artifacts.py`
+- Define reusable Phase 11 artifact validators in `utils/data_contracts.py` for dashboard-time contract enforcement
 
 ### Input Artifacts
 - `results/simulation/rule_results.parquet`
@@ -950,146 +979,155 @@ Instead of automatic percentile trimming:
   - `results/metrics/strategy_metrics.parquet`
   - `results/metrics/strategy_summary.json`
   - `results/metrics/statistical_tests.json`
+- The dashboard must validate these artifacts against shared Phase 11 schema constants and reusable validators before rendering
 - The dashboard must treat these artifacts as read-only analytical outputs and must not recompute metrics or statistical tests
 
-## 15. Phase 12 - Dashboard
+## 15. Phase 12 - Read-Only Comparison Dashboard
 
 ### Objective
 - Provide a Streamlit-based dashboard for visual comparison of pricing strategies using precomputed evaluation outputs only
 
 ### Rationale
-- The dashboard translates Phase 11 analytical outputs into an interpretable, decision-oriented interface for stakeholders
-- Visualization enables intuitive comparison of revenue performance and pricing stability across strategies
-- A read-only dashboard preserves strict separation between computation (Phases 1-11) and presentation, preventing unintended recomputation or analytical drift
+- The dashboard translates Phase 11 analytical outputs into an interpretable interface for comparing pricing strategies
+- Visualization supports comparison across revenue performance and pricing stability
+- A strict read-only design preserves separation between computation (Phases 1-11) and presentation (Phase 12)
+- Shared validators prevent schema drift between the frozen evaluation artifacts and the dashboard layer
 
 ### Implementation Files
 - `dashboard/app.py`
 - `config.py`
+- `utils/data_contracts.py`
 - `utils/logging_config.py`
 
 ### Outputs
-- Streamlit dashboard application served locally
-- No additional machine-readable artifacts are produced
+- Streamlit dashboard application (local)
 - `logs/phase12.log`
 
 ### Status
 - Completed
 
 ### Implemented Scope
-- Add a Streamlit Phase 12 dashboard implemented as a single-page analytical view
-- Load only the frozen Phase 11 artifacts:
+- Load only Phase 11 artifacts:
   - `results/metrics/strategy_metrics.parquet`
   - `results/metrics/strategy_summary.json`
   - `results/metrics/statistical_tests.json`
-- Validate file existence and expected schema/key contracts before rendering
-- Enforce `metric_level == "product"` for product-level comparison and boxplot sections
-- Use deterministic default product selection via `sorted(unique_stock_codes)[0]`
-- Render strategy KPI summary cards and tabular overview from `strategy_summary.json`
-- Render revenue comparison bar charts using Phase 11 summary metrics
-- Render pricing stability comparison bar charts using Phase 11 summary metrics
-- Replace the previously planned trajectory section with product-level strategy comparison for a selected `stock_code`
-- Render a required boxplot of product-level `mean_daily_revenue` by strategy and an additional boxplot of `mean_absolute_change`
-- Render a statistical test table from `results/metrics/statistical_tests.json` with significance flag `p_value < 0.05`
-- Centralize the Phase 12 log file constant and dashboard display/validation constants in `config.py`
-- Register dashboard logging in `utils/logging_config.py`
+- Fail fast if any required artifact is missing
+- Validate the full Phase 11 metrics table against `PHASE11_METRIC_COLUMNS` before any dashboard filtering
+- Validate Phase 11 summary and statistical test JSON payloads against shared schema constants in `config.py` via reusable validators in `utils/data_contracts.py`
+- Enforce exact strategy completeness for `rule`, `ml`, and `hybrid`
+- Filter `metric_level == "product"` only after full Phase 11 table validation, then subset to `PHASE12_PRODUCT_METRIC_COLUMNS` for product-view rendering
+- Render deterministic dashboard sections for strategy KPIs, revenue, pricing stability, product-level comparison, product-level distributions, and flattened statistical test results
+- Log dashboard startup and loaded artifact context to `logs/phase12.log`
 
-### Input Artifacts
-- `results/metrics/strategy_metrics.parquet`
-- `results/metrics/strategy_summary.json`
-- `results/metrics/statistical_tests.json`
-- All inputs are treated as read-only and must not be modified or recomputed
-- Phase 12 must not read any files under `results/simulation/`
-
-### Dashboard Design Principles
-- Visualization-only layer with no metric or statistical-test recomputation
-- No model loading, simulation execution, or Phase 7 result access
-- Single source of truth is the frozen Phase 11 artifact set
-- Layout presents headline metrics first, then supporting comparative analysis
-- Interactivity is intentionally minimal and limited to product selection for product-level views
+### Input Validation Contract
+- Parquet validation:
+  1. Validate `strategy_metrics.parquet` against `PHASE11_METRIC_COLUMNS`
+  2. Filter `metric_level == "product"`
+  3. Subset to `PHASE12_PRODUCT_METRIC_COLUMNS` for dashboard-only product views
+- JSON validation:
+  - `PHASE11_SUMMARY_SCHEMA` defines required summary metric keys and float types
+  - `PHASE11_TEST_SECTION_METRICS` defines required top-level statistical test sections
+  - `PHASE11_TEST_NAMES` defines required test names per comparison
+  - `PHASE11_TESTS_SCHEMA` defines required test payload fields and types
+- `dashboard/app.py` must call shared validators only and must not duplicate schema logic locally
 
 ### Dashboard Structure
 - Section 1 - Strategy KPI Summary
-  - Display headline metrics using `strategy_summary.json`
-  - Metrics:
-    - `total_revenue`
-    - `mean_daily_revenue`
-    - `mean_absolute_change`
-    - `price_std`
-    - `max_price_jump`
-    - `change_frequency`
+  - Source: `strategy_summary.json`
+  - Metrics: `total_revenue`, `mean_daily_revenue`, `mean_absolute_change`, `price_std`, `max_price_jump`, `change_frequency`
 - Section 2 - Revenue Comparison
   - Bar chart: `total_revenue` by strategy
   - Bar chart: `mean_daily_revenue` by strategy
 - Section 3 - Pricing Stability Comparison
-  - Bar chart: `mean_absolute_change` by strategy
-  - Bar chart: `price_std` by strategy
-  - Bar chart: `max_price_jump` by strategy
-  - Bar chart: `change_frequency` by strategy
+  - Bar charts: `mean_absolute_change`, `price_std`, `max_price_jump`, `change_frequency`
 - Section 4 - Product-Level Strategy Comparison
-  - Product selector based on `stock_code`
-  - Deterministic default selection: `sorted(unique_stock_codes)[0]`
-  - Compare selected `stock_code` across strategies using product-level rows from `strategy_metrics.parquet`
-  - Metrics displayed:
-    - `total_revenue`
-    - `mean_daily_revenue`
-    - `mean_absolute_change`
-    - `price_std`
-    - `max_price_jump`
-    - `change_frequency`
+  - Select `stock_code`
+  - Compare strategies using product-level rows from `strategy_metrics.parquet`
 - Section 5 - Product-Level Distribution Analysis
-  - Boxplot of product-level `mean_daily_revenue` by strategy
-  - Boxplot of product-level `mean_absolute_change` by strategy
-  - Always filter to `metric_level == "product"`
+  - Boxplot: `mean_daily_revenue`
+  - Boxplot: `mean_absolute_change`
+  - Constraint: must use only `metric_level == "product"` rows
 - Section 6 - Statistical Test Results
-  - Display statistical outputs from `results/metrics/statistical_tests.json`
-  - Table columns:
-    - `Comparison`
-    - `Metric`
-    - `Test`
-    - `Statistic`
-    - `p-value`
-    - `Sample Size`
-    - `Significant`
-  - Significance rule: `p_value < 0.05`
+  - Source: `statistical_tests.json`
+  - On-disk artifact remains nested:
+    ```json
+    {
+      "revenue_tests": {
+        "hybrid_vs_ml": {
+          "paired_ttest": {
+            "statistic": 0.0,
+            "p_value": 1.0,
+            "sample_size": 266
+          },
+          "wilcoxon": {
+            "statistic": 0.0,
+            "p_value": 1.0,
+            "sample_size": 266
+          }
+        }
+      },
+      "stability_tests": {
+        "hybrid_vs_ml": {
+          "paired_ttest": {
+            "statistic": 0.0,
+            "p_value": 1.0,
+            "sample_size": 266
+          },
+          "wilcoxon": {
+            "statistic": 0.0,
+            "p_value": 1.0,
+            "sample_size": 266
+          }
+        }
+      }
+    }
+    ```
+  - Dashboard responsibility: flatten nested results into rows with `comparison`, `metric`, `test`, `statistic`, `p_value`, `sample_size`, `significant`
+  - Significance rule: `significant = p_value < 0.05`
+
+### Constraints
+- The dashboard must NOT:
+  - read from `results/simulation/*`
+  - recompute any metrics
+  - rerun simulations
+  - modify input artifacts
 
 ### Execution
-- Run the dashboard with `streamlit run dashboard/app.py`
-- Execution behaviour:
-  - load Phase 11 artifacts
-  - validate file existence and contracts
-  - render visualizations
-  - write dashboard logs only
+- Run with: `streamlit run dashboard/app.py`
+- Execution flow:
+  1. load artifacts
+  2. validate shared contracts
+  3. validate strategy completeness
+  4. render dashboard
+  5. log execution
 
 ### Frozen Results
-- Latest verified command: `timeout 10s streamlit run dashboard/app.py --server.headless true --server.port 8501`
-- Verified input artifacts:
+- Dashboard consumes only:
   - `results/metrics/strategy_metrics.parquet`
   - `results/metrics/strategy_summary.json`
   - `results/metrics/statistical_tests.json`
-- Verified product-level metrics rows available to the dashboard: 15
-- Verified strategy summary strategies: `hybrid`, `ml`, `rule`
-- Deterministic default `stock_code`: `22086`
-- Verified statistical test table rows: 8
+- Full Phase 11 schema validation occurs before any Phase 12 product filtering
+- Shared validators in `utils/data_contracts.py` enforce read-only dashboard contract integrity
+- Product-level filtering remains deterministic
+- Dashboard has no dependency on `results/simulation/*`
 
 ### Latest Verified Run Summary
-- Dashboard loads successfully from Phase 11 outputs only
-- Product-level filtering is enforced for Section 4 and Section 5
-- No simulation artifacts are loaded by the dashboard
-- Dashboard logging is registered at `logs/phase12.log`
+- Latest artifact-load verification via `dashboard.app.load_dashboard_inputs()` completed on 2026-03-18
+- Verified loaded dashboard inputs:
+  - product metric rows: 15
+  - strategies: `hybrid`, `ml`, `rule`
+  - statistical test sections: `revenue_tests`, `stability_tests`
+- Latest successful headless Streamlit startup remained: `timeout 10s streamlit run dashboard/app.py --server.headless true --server.port 8501` -> 2026-03-17
 
 ### Phase Handoff Contract
-- Consumes only Phase 11 outputs:
-  - `results/metrics/strategy_metrics.parquet`
-  - `results/metrics/strategy_summary.json`
-  - `results/metrics/statistical_tests.json`
-- Must not:
-  - recompute metrics
-  - rerun simulations
-  - read `results/simulation/*`
-  - modify input artifacts
-- Provides a read-only visual interpretation layer for Phase 13 robustness work and final reporting
+- Consumes:
+  - `strategy_metrics.parquet`
+  - `strategy_summary.json`
+  - `statistical_tests.json`
+- All inputs are read-only and must be validated before rendering
+- Produces no machine-readable outputs
 
-## 16. Phase 13 - Robustness Checks
+## 16. Phase 13 - Robustness and Sensitivity Checks
 
 ### Objective
 - Test sensitivity of conclusions to key control parameters
@@ -1098,7 +1136,7 @@ Instead of automatic percentile trimming:
 - Robustness testing verifies that conclusions are not artifacts of a single parameter choice
 - Sensitivity analysis improves confidence in final recommendations
 
-### Implementation File
+### Implementation Files
 - TBD
 
 ### Outputs
@@ -1124,7 +1162,7 @@ Instead of automatic percentile trimming:
 ### Phase Handoff Contract
 - Consumes baseline strategy/evaluation outputs and emits robustness evidence for final documentation freeze
 
-## 17. Phase 14 - Documentation Freeze
+## 17. Phase 14 - Documentation and Reproducibility Freeze
 
 ### Objective
 - Freeze reproducibility-critical project state
@@ -1132,7 +1170,7 @@ Instead of automatic percentile trimming:
 ### Rationale
 - A frozen documentation snapshot ensures external readers can reproduce results exactly from one coherent record
 
-### Implementation File
+### Implementation Files
 - TBD
 
 ### Outputs
@@ -1160,7 +1198,7 @@ Instead of automatic percentile trimming:
 ### Phase Handoff Contract
 - Consumes outputs from Phases 1-13 and prepares the immutable release package for final reproducibility verification
 
-## 18. Phase 15 - Final Reproducibility Check
+## 18. Phase 15 - End-to-End Reproducibility Verification
 
 ### Objective
 - Verify reproducibility by full environment and pipeline rerun
@@ -1168,7 +1206,7 @@ Instead of automatic percentile trimming:
 ### Rationale
 - Final rerun validation confirms the project is reproducible end-to-end, not only phase-by-phase during development
 
-### Implementation File
+### Implementation Files
 - TBD
 
 ### Outputs
@@ -1195,7 +1233,7 @@ Instead of automatic percentile trimming:
 - Consumes the Phase 14 frozen package and certifies end-to-end reproducibility status
 
 ## Current Implementation Note
-- As of March 17, 2026, executable implementation coverage is Phases 1-12
+- As of March 18, 2026, executable implementation coverage is Phases 1-12
 - Latest completed workflow run: `python main.py --workflow full` (Phases 1-6)
 - Latest simulation runs by strategy:
   - `rule` -> 2026-03-16
@@ -1203,14 +1241,16 @@ Instead of automatic percentile trimming:
   - `hybrid` -> 2026-03-16
 - Explicit multi-strategy simulation mode: `python main.py --simulate all`
 - Latest evaluation run: `python main.py --evaluate` -> 2026-03-16
-- Latest dashboard verification run: `timeout 10s streamlit run dashboard/app.py --server.headless true --server.port 8501` -> 2026-03-17
+- Latest successful dashboard server verification run: `timeout 10s streamlit run dashboard/app.py --server.headless true --server.port 8501` -> 2026-03-17
+- Latest dashboard artifact-load verification run via shared validators: `dashboard.app.load_dashboard_inputs()` -> 2026-03-18
 - Implemented explicit evaluation mode: `python main.py --evaluate`
 - Implemented read-only Phase 12 dashboard that consumes only:
   - `results/metrics/strategy_metrics.parquet`
   - `results/metrics/strategy_summary.json`
   - `results/metrics/statistical_tests.json`
 - Dashboard runtime must not read `results/simulation/*` or recompute metrics/statistical tests
-- Internal refactor coverage updated on 2026-03-17 for dashboard delivery, read-only artifact loading, and Phase 12 logging support
+- Shared Phase 11 summary/test schema constants and reusable dashboard validators were added on 2026-03-18
+- Internal refactor coverage updated on 2026-03-18 for shared artifact validation, full-schema dashboard loading, and documentation alignment
 - Phases 13-15 remain planned and will be added incrementally
 
 ## Final Frozen Design Decisions
