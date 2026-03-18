@@ -15,7 +15,7 @@ This project implements and comparatively evaluates three pricing strategies wit
 - Pricing stability
 
 ### Layered Architecture
-Data -> Inspection -> Cleaning -> Product Selection -> Aggregation -> Feature Engineering -> Demand Model -> Pricing Strategies -> Simulation -> Evaluation -> Dashboard -> Documentation -> Reproducibility
+Data -> Inspection -> Cleaning -> Product Selection -> Aggregation -> Feature Engineering -> Demand Model -> Pricing Strategies -> Simulation -> Evaluation -> Dashboard -> Validation and Reproducibility
 
 ### Scope Constraints
 - Dataset limited to 2010-2011 only
@@ -68,7 +68,7 @@ Data -> Inspection -> Cleaning -> Product Selection -> Aggregation -> Feature En
 - Future phases must reuse frozen machine-readable artifacts and shared utility loaders/validators where available instead of recreating equivalent loading or contract logic
 
 ### Results Folder Convention
-- Store phase-generated artifacts under typed `results/` subfolders (for example `results/reports/`, `results/metrics/`, `results/simulation/`, `results/robustness/`)
+- Store phase-generated artifacts under typed `results/` subfolders (for example `results/reports/`, `results/metrics/`, `results/simulation/`, `results/validation/`)
 - Prefer stable file names controlled by `config.py` constants; avoid ad-hoc output file names in phase modules
 
 ### Output Data Contracts
@@ -1127,110 +1127,56 @@ Instead of automatic percentile trimming:
 - All inputs are read-only and must be validated before rendering
 - Produces no machine-readable outputs
 
-## 16. Phase 13 - Robustness and Sensitivity Checks
+## 16. Phase 13 - Validation and Reproducibility
 
 ### Objective
-- Test sensitivity of conclusions to key control parameters
+- Validate that Phase 11 conclusions are stable and reproducible under controlled conditions
 
 ### Rationale
-- Robustness testing verifies that conclusions are not artifacts of a single parameter choice
-- Sensitivity analysis improves confidence in final recommendations
+- Phase 11 provides the primary comparative results across pricing strategies
+- This phase verifies that those results are not sensitive to small parameter variations and remain reproducible under repeated execution
+- The goal is validation of conclusions rather than additional experimental contribution
 
 ### Implementation Files
-- TBD
+- `evaluation/validation.py`
 
 ### Outputs
-- `results/robustness/robustness_results.parquet`
-- `results/robustness/robustness_summary.json`
+- `results/validation/validation_summary.json`
+- `logs/phase13.log`
 
 ### Status
 - Planned
 
 ### Planned Scope
-- Clamp sensitivity
-- Smoothing alpha sensitivity
-- Candidate grid sensitivity
-- Reuse the frozen Phase 7 simulator and Phase 11 evaluation logic rather than creating parallel experimental paths
-- Parameter sweep specification:
-  - `MAX_DAILY_CHANGE`: `0.01`, `0.03`, `0.05`
-  - `HYBRID_SMOOTHING_ALPHA`: `0.3`, `0.5`, `0.7`
-  - `PRICE_GRID_PERCENTAGE`: `0.05`, `0.10`, `0.15`
+- Run a lightweight robustness check on small parameter variations:
+  - `MAX_DAILY_CHANGE`: `0.01`, `0.05`
+  - `HYBRID_SMOOTHING_ALPHA`: `0.3`, `0.7`
+- For each parameter variation:
+  - run simulation using Phase 7 via `python main.py --simulate all`
+  - run evaluation using Phase 11 via `python main.py --evaluate`
+  - compare resulting strategy summaries with the frozen Phase 11 baseline
+- Validation criteria for robustness checks:
+  - revenue ranking remains unchanged and `ml` remains the highest-revenue strategy
+  - stability ranking remains unchanged and `hybrid` remains the most stable strategy
+- Run a re-run consistency check:
+  - rerun `python main.py --simulate all`
+  - rerun `python main.py --evaluate`
+  - compare regenerated outputs with frozen Phase 11 outputs
+- Acceptance criteria for consistency checks:
+  - strategy summary metrics match baseline within tolerance `abs(new_value - baseline_value) < 1e-6`
+  - no schema changes in `strategy_metrics.parquet`, `strategy_summary.json`, or `statistical_tests.json`
+  - no row-count differences
+- Record a minimal reproducibility snapshot including:
+  - artifacts: `config.py`, `results/metrics/strategy_summary.json`, `results/metrics/strategy_metrics.parquet`
+  - metadata: Python version and execution timestamp
+- Reuse the frozen Phase 7 simulator and Phase 11 evaluation pipeline without adding new strategies or metrics
 
 ### Frozen Results
-- Pending phase completion; sensitivity-run outputs and conclusion deltas will be frozen after Phase 13 execution is finalized
+- Pending phase completion; validation summary and reproducibility checks will be frozen after execution
 
 ### Phase Handoff Contract
-- Consumes baseline strategy/evaluation outputs and emits robustness evidence for final documentation freeze
-
-## 17. Phase 14 - Documentation and Reproducibility Freeze
-
-### Objective
-- Freeze reproducibility-critical project state
-
-### Rationale
-- A frozen documentation snapshot ensures external readers can reproduce results exactly from one coherent record
-
-### Implementation Files
-- TBD
-
-### Outputs
-- Frozen parameter, log, version, and technical documentation records
-
-### Status
-- Planned
-
-### Planned Scope
-- Freeze reproducibility-critical artifacts:
-  - `implementation.md`
-  - `config.py`
-  - `requirements.txt`
-  - `results/`
-  - `models/artifacts/`
-- Include machine-readable phase artifacts, logs, and frozen summaries that reflect the post-refactor code structure
-- Record reproducibility metadata:
-  - git commit hash
-  - Python version
-  - package versions
-
-### Frozen Results
-- Pending phase completion; reproducibility-critical documents and metadata manifests will be frozen after Phase 14 execution is finalized
-
-### Phase Handoff Contract
-- Consumes outputs from Phases 1-13 and prepares the immutable release package for final reproducibility verification
-
-## 18. Phase 15 - End-to-End Reproducibility Verification
-
-### Objective
-- Verify reproducibility by full environment and pipeline rerun
-
-### Rationale
-- Final rerun validation confirms the project is reproducible end-to-end, not only phase-by-phase during development
-
-### Implementation Files
-- TBD
-
-### Outputs
-- Reproducibility verification report (path TBD)
-
-### Status
-- Planned
-
-### Planned Scope
-- Recreate environment
-- Re-run full pipeline
-- Re-run explicit simulation and evaluation commands after the full workflow baseline
-- Reproducibility acceptance criteria:
-  - output schemas match frozen contracts
-  - row counts match frozen summaries
-  - aggregate revenue metrics match baseline values
-  - strategy result files reproduce identical evaluation metrics
-  - `python main.py --evaluate` reproduces the frozen Phase 11 summary and statistical outputs
-
-### Frozen Results
-- Pending phase completion; reproducibility verification report and final checksum evidence will be frozen after Phase 15 execution is finalized
-
-### Phase Handoff Contract
-- Consumes the Phase 14 frozen package and certifies end-to-end reproducibility status
+- Consumes frozen Phase 11 evaluation outputs and the existing Phase 7 and Phase 11 execution paths
+- Produces validation evidence confirming stability of conclusions and reproducibility of results
 
 ## Current Implementation Note
 - As of March 18, 2026, executable implementation coverage is Phases 1-12
@@ -1251,7 +1197,7 @@ Instead of automatic percentile trimming:
 - Dashboard runtime must not read `results/simulation/*` or recompute metrics/statistical tests
 - Shared Phase 11 summary/test schema constants and reusable dashboard validators were added on 2026-03-18
 - Internal refactor coverage updated on 2026-03-18 for shared artifact validation, full-schema dashboard loading, and documentation alignment
-- Phases 13-15 remain planned and will be added incrementally
+- Phase 13 is currently planned as validation/reproducibility work and has not yet been implemented in code
 
 ## Final Frozen Design Decisions
 - Dataset restricted to 2010-2011 only

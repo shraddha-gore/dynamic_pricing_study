@@ -19,14 +19,14 @@ This study uses only the 2010–⁠2011 worksheet.
 
 The 2010–⁠2011 sheet was selected to:
 
--   Ensure a consistent and continuous two-year observation window
--   Avoid partial-period effects from the 2009–⁠2010 sheet
+-   Ensure a single continuous observation window within the selected worksheet
+-   Avoid combining multiple worksheets with different temporal coverage
 -   Maintain temporal coherence for daily aggregation and lag-based
     feature engineering
 -   Reduce cross-sheet structural inconsistencies
 
 The dataset scope is therefore strictly limited to transactions
-occurring within the 2010–⁠2011 period.
+occurring within the 2010–⁠2011 worksheet period.
 
 No 2009 data is used anywhere in this study.
 
