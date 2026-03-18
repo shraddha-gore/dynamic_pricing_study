@@ -1,5 +1,6 @@
 from collections.abc import Callable
 
+from evaluation.validation import run_phase13
 from models.demand_model import run_phase6
 from preprocessing.aggregate_daily import run_phase4
 from preprocessing.clean_data import run_phase2
@@ -16,6 +17,7 @@ def _phase_registry() -> tuple[tuple[int, Callable[[], None]], ...]:
         (4, run_phase4),
         (5, run_phase5),
         (6, run_phase6),
+        (13, run_phase13),
     )
 
 
@@ -34,6 +36,10 @@ def available_phases() -> list[int]:
     return [phase_number for phase_number, _ in _phase_registry()]
 
 
+def workflow_phases() -> list[int]:
+    return [1, 2, 3, 4, 5, 6]
+
+
 def run_workflow() -> None:
-    for phase in available_phases():
+    for phase in workflow_phases():
         run_phase(phase)

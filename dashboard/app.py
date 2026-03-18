@@ -14,11 +14,13 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 from config import (
     COL_STOCK_CODE,
     PHASE7_STRATEGIES,
+    PHASE11_PRODUCT_METRIC_LEVEL,
     PHASE11_STATISTICAL_TESTS_PATH,
     PHASE11_STRATEGY_METRICS_PATH,
     PHASE11_STRATEGY_SUMMARY_PATH,
     PHASE12_PRODUCT_COMPARISON_METRICS,
     PHASE12_PRODUCT_METRIC_COLUMNS,
+    PHASE12_SIGNIFICANCE_THRESHOLD,
     PHASE12_STATISTICAL_TEST_LABELS,
     PHASE12_SUMMARY_METRICS,
     PHASE12_TEST_LABELS,
@@ -55,7 +57,7 @@ def _ensure_file_exists(path_label: str, path_value: str) -> None:
 
 def _phase12_product_metrics_view(metrics_df: pd.DataFrame) -> pd.DataFrame:
     product_metrics_df = metrics_df.loc[
-        metrics_df["metric_level"] == "product",
+        metrics_df["metric_level"] == PHASE11_PRODUCT_METRIC_LEVEL,
         PHASE12_PRODUCT_METRIC_COLUMNS,
     ].copy()
     if product_metrics_df.empty:
@@ -278,7 +280,7 @@ def _statistical_results_frame(
                         "Statistic": float(test_values["statistic"]),
                         "p-value": p_value,
                         "Sample Size": int(test_values["sample_size"]),
-                        "Significant": p_value < 0.05,
+                        "Significant": p_value < PHASE12_SIGNIFICANCE_THRESHOLD,
                     }
                 )
 

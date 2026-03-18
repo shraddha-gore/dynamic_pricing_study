@@ -49,14 +49,15 @@ Data -> Inspection -> Cleaning -> Product Selection -> Aggregation -> Feature En
 ## Global Execution Rules
 - Run all phases inside virtual environment: `source venv/bin/activate`
 - Define global constants in `config.py`
-- No hardcoded paths or column names
+- No hardcoded artifact paths or shared cross-phase contract values outside `config.py`
 - Train demand model once (Phase 6)
 - Simulation uses predicted demand only
 - Full workflow (`python main.py --workflow full`) runs Phases 1-6 only
 - Phase 7 requires explicit simulation mode: `python main.py --simulate {rule|ml|hybrid|all}`
 - Phase 11 requires explicit evaluation mode: `python main.py --evaluate`
+- Phase 13 requires explicit validation mode: `python main.py --validate`
 - Phase 12 dashboard runs separately from the CLI workflow: `streamlit run dashboard/app.py`
-- CLI mode precedence follows the executable branch order in `main.py`: `--evaluate` -> `--simulate` -> `--phase` -> `--workflow`
+- CLI mode precedence follows the executable branch order in `main.py`: `--evaluate` -> `--simulate` -> `--validate` -> `--workflow`
 
 ## Implementation Best Practices (All Phases)
 
@@ -124,8 +125,8 @@ Centralize in `config.py`:
 - Raw source columns: `RAW_COL_INVOICE`, `RAW_COL_STOCK_CODE`, `RAW_COL_DESCRIPTION`, `RAW_COL_QUANTITY`, `RAW_COL_PRICE`, `RAW_COL_INVOICE_DATE`, `RAW_COL_CUSTOMER_ID`, `RAW_COL_COUNTRY`
 - Canonical columns (`snake_case`): `COL_INVOICE`, `COL_STOCK_CODE`, `COL_DESCRIPTION`, `COL_QUANTITY`, `COL_PRICE`, `COL_INVOICE_DATE`, `COL_CUSTOMER_ID`, `COL_COUNTRY`
 - Raw-to-canonical mapping: `RAW_TO_CANONICAL_COLUMNS`
-- Phase output paths: `CLEAN_DATA_PATH`, `SELECTED_PRODUCTS_PATH`, `DAILY_AGG_DATA_PATH`, `FEATURE_TRAIN_DATA_PATH`, `FEATURE_TEST_DATA_PATH`, `PHASE6_MODEL_ARTIFACT_PATH`, `PHASE6_METRICS_PATH`, `PHASE11_STRATEGY_METRICS_PATH`, `PHASE11_STRATEGY_SUMMARY_PATH`, `PHASE11_STATISTICAL_TESTS_PATH`
-- Report/log paths and files: `PHASE1_REPORT_FILE`, `PHASE1_LOG_FILE`, `PHASE2_LOG_FILE`, `PHASE3_REPORT_FILE`, `PHASE3_LOG_FILE`, `PHASE4_LOG_FILE`, `PHASE5_LOG_FILE`, `PHASE6_LOG_FILE`, `PHASE7_LOG_FILE`, `PHASE11_LOG_FILE`, `PHASE12_LOG_FILE`, `EXPERIMENT_LOG_FILE`
+- Phase output paths: `CLEAN_DATA_PATH`, `SELECTED_PRODUCTS_PATH`, `DAILY_AGG_DATA_PATH`, `FEATURE_TRAIN_DATA_PATH`, `FEATURE_TEST_DATA_PATH`, `PHASE6_MODEL_ARTIFACT_PATH`, `PHASE6_METRICS_PATH`, `PHASE11_STRATEGY_METRICS_PATH`, `PHASE11_STRATEGY_SUMMARY_PATH`, `PHASE11_STATISTICAL_TESTS_PATH`, `PHASE13_VALIDATION_SUMMARY_PATH`
+- Report/log paths and files: `PHASE1_REPORT_FILE`, `PHASE1_LOG_FILE`, `PHASE2_LOG_FILE`, `PHASE3_REPORT_FILE`, `PHASE3_LOG_FILE`, `PHASE4_LOG_FILE`, `PHASE5_LOG_FILE`, `PHASE6_LOG_FILE`, `PHASE7_LOG_FILE`, `PHASE11_LOG_FILE`, `PHASE12_LOG_FILE`, `PHASE13_LOG_FILE`, `EXPERIMENT_LOG_FILE`
 - Frozen output schemas: `PHASE2_FROZEN_COLUMNS`, `PHASE3_FROZEN_COLUMNS`, `PHASE4_FROZEN_COLUMNS`, `PHASE5_FROZEN_COLUMNS`
 - Frozen Phase 5 model feature schema: `PHASE5_FROZEN_FEATURE_COLUMNS`
 - Phase 5 calendar schema helpers: `PHASE5_WEEKDAY_COLUMNS`, `PHASE5_MONTH_COLUMNS`
@@ -138,8 +139,9 @@ Centralize in `config.py`:
 - Phase 7 params: `PHASE7_GRID_POINTS`, `PHASE7_STRATEGIES`
 - Phase 7 paths: `SIMULATION_CANDIDATE_PATHS`, `SIMULATION_RESULTS_PATHS`
 - Phase 7 frozen schemas: `PHASE7_CANDIDATE_FROZEN_COLUMNS`, `PHASE7_RESULT_FROZEN_COLUMNS`
-- Phase 11 evaluation constants: `PHASE11_METRIC_COLUMNS`, `PHASE11_PAIRING_KEYS`, `PHASE11_COMPARISONS`, `PHASE11_SUMMARY_SCHEMA`, `PHASE11_TEST_SECTION_METRICS`, `PHASE11_TEST_NAMES`, `PHASE11_TESTS_SCHEMA`
-- Phase 12 dashboard constants: `PHASE12_SUMMARY_METRICS`, `PHASE12_PRODUCT_METRIC_COLUMNS`, `PHASE12_PRODUCT_COMPARISON_METRICS`, `PHASE12_STATISTICAL_TEST_LABELS`, `PHASE12_TEST_LABELS`
+- Phase 11 evaluation constants: `PHASE11_METRIC_COLUMNS`, `PHASE11_PAIRING_KEYS`, `PHASE11_COMPARISONS`, `PHASE11_PRODUCT_METRIC_LEVEL`, `PHASE11_STRATEGY_METRIC_LEVEL`, `PHASE11_METRIC_LEVELS`, `PHASE11_SUMMARY_STOCK_CODE`, `PHASE11_SUMMARY_SCHEMA`, `PHASE11_TEST_SECTION_METRICS`, `PHASE11_TEST_NAMES`, `PHASE11_TESTS_SCHEMA`
+- Phase 12 dashboard constants: `PHASE12_SUMMARY_METRICS`, `PHASE12_PRODUCT_METRIC_COLUMNS`, `PHASE12_PRODUCT_COMPARISON_METRICS`, `PHASE12_STATISTICAL_TEST_LABELS`, `PHASE12_TEST_LABELS`, `PHASE12_SIGNIFICANCE_THRESHOLD`
+- Phase 13 validation constants: `PHASE13_PARAMETER_VARIATIONS`, `PHASE13_RANKING_CHECKS`, `PHASE13_RERUN_METRICS`, `PHASE13_RERUN_TOLERANCE`
 
 ## 3. Phase 0 - Project Foundations
 
@@ -892,11 +894,11 @@ Instead of automatic percentile trimming:
 - Require all three Phase 7 simulation outputs and fail hard if any are missing
 - Validate each strategy result file against `PHASE7_RESULT_FROZEN_COLUMNS` before evaluation proceeds
 - Compute product-level metrics for each `(stock_code, strategy)` pair
-- Aggregate product-level metrics into strategy-level rows with `stock_code = "ALL"` and `metric_level = "strategy"`
+- Aggregate product-level metrics into strategy-level rows with `stock_code = PHASE11_SUMMARY_STOCK_CODE` and `metric_level = PHASE11_STRATEGY_METRIC_LEVEL`
 - Persist a unified metrics table controlled by `PHASE11_METRIC_COLUMNS`
 - Persist headline strategy summary JSON for downstream dashboard/reporting use
 - Run paired t-tests and Wilcoxon signed-rank tests for `hybrid_vs_ml` and `hybrid_vs_rule`
-- Centralize Phase 11 artifact paths, log file, pairing keys, comparison set, and metric schema constants in `config.py`
+- Centralize Phase 11 artifact paths, log file, pairing keys, comparison set, metric-level constants, summary row sentinel, and metric schema constants in `config.py`
 - Centralize shared Phase 11 summary/test JSON schema constants in `config.py` for downstream read-only consumers
 - Resolve runtime file paths from `config.py` instead of keeping module-level path constants in phase modules
 - Centralize shared Phase 7 result loading and validation in `utils/simulation_artifacts.py`
@@ -929,9 +931,9 @@ Instead of automatic percentile trimming:
 - Level 1 - Product-level metrics keyed by `(stock_code, strategy)`
 - Level 2 - Strategy-level summary rows aggregated from product-level metrics
 - `results/metrics/strategy_metrics.parquet` is a single unified table with:
-  - `metric_level = "product"` for SKU rows
-  - `metric_level = "strategy"` for summary rows
-- Strategy-level rows use `stock_code = "ALL"`
+  - `metric_level = PHASE11_PRODUCT_METRIC_LEVEL` for SKU rows
+  - `metric_level = PHASE11_STRATEGY_METRIC_LEVEL` for summary rows
+- Strategy-level rows use `stock_code = PHASE11_SUMMARY_STOCK_CODE`
 
 ### Statistical Testing
 - Paired observations are aligned on `(stock_code, invoice_day)`
@@ -1015,14 +1017,14 @@ Instead of automatic percentile trimming:
 - Validate the full Phase 11 metrics table against `PHASE11_METRIC_COLUMNS` before any dashboard filtering
 - Validate Phase 11 summary and statistical test JSON payloads against shared schema constants in `config.py` via reusable validators in `utils/data_contracts.py`
 - Enforce exact strategy completeness for `rule`, `ml`, and `hybrid`
-- Filter `metric_level == "product"` only after full Phase 11 table validation, then subset to `PHASE12_PRODUCT_METRIC_COLUMNS` for product-view rendering
+- Filter `metric_level == PHASE11_PRODUCT_METRIC_LEVEL` only after full Phase 11 table validation, then subset to `PHASE12_PRODUCT_METRIC_COLUMNS` for product-view rendering
 - Render deterministic dashboard sections for strategy KPIs, revenue, pricing stability, product-level comparison, product-level distributions, and flattened statistical test results
 - Log dashboard startup and loaded artifact context to `logs/phase12.log`
 
 ### Input Validation Contract
 - Parquet validation:
   1. Validate `strategy_metrics.parquet` against `PHASE11_METRIC_COLUMNS`
-  2. Filter `metric_level == "product"`
+  2. Filter `metric_level == PHASE11_PRODUCT_METRIC_LEVEL`
   3. Subset to `PHASE12_PRODUCT_METRIC_COLUMNS` for dashboard-only product views
 - JSON validation:
   - `PHASE11_SUMMARY_SCHEMA` defines required summary metric keys and float types
@@ -1046,7 +1048,7 @@ Instead of automatic percentile trimming:
 - Section 5 - Product-Level Distribution Analysis
   - Boxplot: `mean_daily_revenue`
   - Boxplot: `mean_absolute_change`
-  - Constraint: must use only `metric_level == "product"` rows
+  - Constraint: must use only `metric_level == PHASE11_PRODUCT_METRIC_LEVEL` rows
 - Section 6 - Statistical Test Results
   - Source: `statistical_tests.json`
   - On-disk artifact remains nested:
@@ -1083,7 +1085,7 @@ Instead of automatic percentile trimming:
     }
     ```
   - Dashboard responsibility: flatten nested results into rows with `comparison`, `metric`, `test`, `statistic`, `p_value`, `sample_size`, `significant`
-  - Significance rule: `significant = p_value < 0.05`
+  - Significance rule: `significant = p_value < PHASE12_SIGNIFICANCE_THRESHOLD`
 
 ### Constraints
 - The dashboard must NOT:
@@ -1127,66 +1129,147 @@ Instead of automatic percentile trimming:
 - All inputs are read-only and must be validated before rendering
 - Produces no machine-readable outputs
 
-## 16. Phase 13 - Validation and Reproducibility
+## 16. Phase 13 - System Validation and Reproducibility
 
-### Objective
-- Validate that Phase 11 conclusions are stable and reproducible under controlled conditions
+Objective
 
-### Rationale
-- Phase 11 provides the primary comparative results across pricing strategies
-- This phase verifies that those results are not sensitive to small parameter variations and remain reproducible under repeated execution
-- The goal is validation of conclusions rather than additional experimental contribution
+Validate that Phase 11 results are stable and reproducible under controlled re-execution and small parameter variations
 
-### Implementation Files
-- `evaluation/validation.py`
+Rationale
 
-### Outputs
-- `results/validation/validation_summary.json`
-- `logs/phase13.log`
+Phase 11 produces the final comparative results across pricing strategies
 
-### Status
-- Planned
+This phase ensures that those results:
 
-### Planned Scope
-- Run a lightweight robustness check on small parameter variations:
-  - `MAX_DAILY_CHANGE`: `0.01`, `0.05`
-  - `HYBRID_SMOOTHING_ALPHA`: `0.3`, `0.7`
-- For each parameter variation:
-  - run simulation using Phase 7 via `python main.py --simulate all`
-  - run evaluation using Phase 11 via `python main.py --evaluate`
-  - compare resulting strategy summaries with the frozen Phase 11 baseline
-- Validation criteria for robustness checks:
-  - revenue ranking remains unchanged and `ml` remains the highest-revenue strategy
-  - stability ranking remains unchanged and `hybrid` remains the most stable strategy
-- Run a re-run consistency check:
-  - rerun `python main.py --simulate all`
-  - rerun `python main.py --evaluate`
-  - compare regenerated outputs with frozen Phase 11 outputs
-- Acceptance criteria for consistency checks:
-  - strategy summary metrics match baseline within tolerance `abs(new_value - baseline_value) < 1e-6`
-  - no schema changes in `strategy_metrics.parquet`, `strategy_summary.json`, or `statistical_tests.json`
-  - no row-count differences
-- Record a minimal reproducibility snapshot including:
-  - artifacts: `config.py`, `results/metrics/strategy_summary.json`, `results/metrics/strategy_metrics.parquet`
-  - metadata: Python version and execution timestamp
-- Reuse the frozen Phase 7 simulator and Phase 11 evaluation pipeline without adding new strategies or metrics
+remain consistent when the pipeline is re-executed
 
-### Frozen Results
-- Pending phase completion; validation summary and reproducibility checks will be frozen after execution
+are not sensitive to small changes in key strategy parameters
 
-### Phase Handoff Contract
-- Consumes frozen Phase 11 evaluation outputs and the existing Phase 7 and Phase 11 execution paths
-- Produces validation evidence confirming stability of conclusions and reproducibility of results
+The goal is to confirm reliability of conclusions rather than introduce new experimental contributions
+
+Implementation Files
+
+evaluation/validation.py
+main.py
+pipeline/runner.py
+config.py
+utils/data_contracts.py
+utils/logging_config.py
+
+Outputs
+
+results/validation/validation_summary.json
+
+logs/phase13.log
+
+Status
+
+Completed
+
+Implemented Scope
+
+Load baseline results from:
+
+results/metrics/strategy_summary.json
+
+Perform a lightweight robustness check using limited parameter variations:
+
+MAX_DAILY_CHANGE = 0.01
+
+HYBRID_SMOOTHING_ALPHA = 0.7
+
+For each variation:
+
+temporarily override the hybrid strategy parameter in-memory
+
+re-execute Phase 7 for all strategies using the shared simulation engine
+
+re-execute Phase 11 metrics and statistical tests using the shared evaluation pipeline
+
+compare resulting strategy rankings with baseline expectations
+
+Validate robustness using simple ranking checks:
+
+ml remains highest in total_revenue
+
+hybrid remains lowest in mean_absolute_change
+
+Perform re-run consistency check:
+
+rerun Phase 7 for all strategies
+
+rerun Phase 11 evaluation
+
+compare regenerated strategy_summary.json with baseline
+
+Validate consistency using numeric tolerance:
+
+abs(new_value - baseline_value) < 1e-6 for:
+
+total_revenue
+
+mean_absolute_change
+
+Record validation results as boolean flags without interrupting execution
+
+Reuse:
+
+Phase 7 simulation engine
+
+Phase 11 evaluation pipeline
+
+Snapshot and restore Phase 7 and Phase 11 artifacts so validation remains non-destructive
+
+Do not retrain the demand model or permanently modify existing artifacts
+
+Frozen Results
+
+- Validation summary schema frozen at top-level keys:
+  - overall_passed
+  - baseline_summary
+  - parameter_variations
+  - rerun_consistency
+- Both configured parameter variations preserved the expected ranking checks:
+  - ml remained highest in total_revenue
+  - hybrid remained lowest in mean_absolute_change
+- Re-run consistency matched baseline exactly for all 6 tracked strategy/metric checks within tolerance 1e-6
+- Phase 13 restores the pre-existing Phase 7/Phase 11 artifacts after validation execution
+
+Latest Verified Run Summary
+
+- Latest successful Phase 13 run: `venv/bin/python main.py --validate` -> 2026-03-18
+- Output artifact written: `results/validation/validation_summary.json`
+- Validation result: `overall_passed = true`
+- Parameter variation rankings:
+  - total_revenue: `ml > rule > hybrid`
+  - mean_absolute_change: `hybrid < rule < ml`
+- Re-run consistency: 6 of 6 checks within tolerance
+- Baseline `results/metrics/strategy_summary.json` matches the frozen baseline captured in `validation_summary.json`
+
+Phase Handoff Contract
+
+Consumes:
+
+results/metrics/strategy_summary.json
+data/processed/feature_test_data.parquet
+models/artifacts/demand_model.joblib
+
+Produces:
+
+results/validation/validation_summary.json
+
+Validation outputs are informational and do not modify or replace Phase 11 results
+Temporary Phase 7 and Phase 11 re-execution artifacts are restored to their pre-run state before Phase 13 completes
 
 ## Current Implementation Note
-- As of March 18, 2026, executable implementation coverage is Phases 1-12
+- As of March 18, 2026, executable implementation coverage is Phases 1-13
 - Latest completed workflow run: `python main.py --workflow full` (Phases 1-6)
-- Latest simulation runs by strategy:
-  - `rule` -> 2026-03-16
-  - `ml` -> 2026-03-09
-  - `hybrid` -> 2026-03-16
+- Latest simulation runs by strategy (including Phase 13 re-executions):
+  - `rule` -> 2026-03-18
+  - `ml` -> 2026-03-18
+  - `hybrid` -> 2026-03-18
 - Explicit multi-strategy simulation mode: `python main.py --simulate all`
-- Latest evaluation run: `python main.py --evaluate` -> 2026-03-16
+- Latest evaluation re-execution: Phase 11 reused inside `python main.py --validate` -> 2026-03-18
 - Latest successful dashboard server verification run: `timeout 10s streamlit run dashboard/app.py --server.headless true --server.port 8501` -> 2026-03-17
 - Latest dashboard artifact-load verification run via shared validators: `dashboard.app.load_dashboard_inputs()` -> 2026-03-18
 - Implemented explicit evaluation mode: `python main.py --evaluate`
@@ -1197,7 +1280,16 @@ Instead of automatic percentile trimming:
 - Dashboard runtime must not read `results/simulation/*` or recompute metrics/statistical tests
 - Shared Phase 11 summary/test schema constants and reusable dashboard validators were added on 2026-03-18
 - Internal refactor coverage updated on 2026-03-18 for shared artifact validation, full-schema dashboard loading, and documentation alignment
-- Phase 13 is currently planned as validation/reproducibility work and has not yet been implemented in code
+- Implemented explicit validation mode: `python main.py --validate`
+- Implemented Phase 13 validation/reproducibility runner on 2026-03-18 via `python main.py --validate`
+
+## TODO
+- Remove integer phase identifiers from internal execution scaffolding in `pipeline/runner.py` so runner orchestration uses meaningful named units instead of numeric phase keys.
+- Refactor `main.py`, `pipeline/runner.py`, and `utils/logging_config.py` together so execution, logging, and dispatch share the same named command/group vocabulary.
+- Introduce grouped execution modes that club related phases together (for example preprocessing/model build, simulation, evaluation, validation) instead of relying on phase-number-oriented orchestration.
+- After grouped execution modes are in place, replace remaining phase-number-oriented internal concepts with meaningful named components/domains (for example data prep, model, simulation, evaluation, dashboard, validation) wherever individual units still need to be addressed directly.
+- Once grouped execution modes are implemented, update `implementation.md` command documentation and handoff notes so execution is described in grouped workflows first and phase numbering remains only as roadmap structure.
+- Review whether phase-scoped log file naming should evolve into command/group-scoped naming after the runner refactor to keep runtime semantics aligned with the CLI.
 
 ## Final Frozen Design Decisions
 - Dataset restricted to 2010-2011 only

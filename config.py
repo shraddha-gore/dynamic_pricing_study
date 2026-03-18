@@ -54,6 +54,7 @@ PHASE6_LOG_FILE = "phase6.log"
 PHASE7_LOG_FILE = "phase7.log"
 PHASE11_LOG_FILE = "phase11.log"
 PHASE12_LOG_FILE = "phase12.log"
+PHASE13_LOG_FILE = "phase13.log"
 EXPERIMENT_LOG_FILE = "experiment.log"
 
 
@@ -292,6 +293,10 @@ PHASE11_COMPARISONS = {
     "hybrid_vs_ml": ("hybrid", "ml"),
     "hybrid_vs_rule": ("hybrid", "rule"),
 }
+PHASE11_PRODUCT_METRIC_LEVEL = "product"
+PHASE11_STRATEGY_METRIC_LEVEL = "strategy"
+PHASE11_METRIC_LEVELS = (PHASE11_PRODUCT_METRIC_LEVEL, PHASE11_STRATEGY_METRIC_LEVEL)
+PHASE11_SUMMARY_STOCK_CODE = "ALL"
 PHASE11_SUMMARY_SCHEMA = {
     "total_revenue": float,
     "mean_daily_revenue": float,
@@ -335,3 +340,28 @@ PHASE12_TEST_LABELS = {
     "paired_ttest": "Paired t-test",
     "wilcoxon": "Wilcoxon signed-rank test",
 }
+PHASE12_SIGNIFICANCE_THRESHOLD = 0.05
+
+
+# -----------------------------
+# Phase 13 constants
+# -----------------------------
+PHASE13_VALIDATION_SUMMARY_PATH = "results/validation/validation_summary.json"
+PHASE13_PARAMETER_VARIATIONS = (
+    {
+        "variation_name": "max_daily_change_0.01",
+        "parameter_name": "MAX_DAILY_CHANGE",
+        "parameter_value": 0.01,
+    },
+    {
+        "variation_name": "hybrid_smoothing_alpha_0.7",
+        "parameter_name": "HYBRID_SMOOTHING_ALPHA",
+        "parameter_value": 0.7,
+    },
+)
+PHASE13_RANKING_CHECKS = (
+    "ml_highest_total_revenue",
+    "hybrid_lowest_mean_absolute_change",
+)
+PHASE13_RERUN_METRICS = ("total_revenue", "mean_absolute_change")
+PHASE13_RERUN_TOLERANCE = 1e-6

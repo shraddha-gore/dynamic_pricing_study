@@ -7,6 +7,7 @@ from config import (
     PHASE1_LOG_FILE,
     PHASE11_LOG_FILE,
     PHASE12_LOG_FILE,
+    PHASE13_LOG_FILE,
     PHASE2_LOG_FILE,
     PHASE3_LOG_FILE,
     PHASE4_LOG_FILE,
@@ -47,6 +48,17 @@ def _phase_handler_specs() -> tuple[tuple[int, str, tuple[str, ...]], ...]:
         (7, PHASE7_LOG_FILE, ("simulation.simulator",)),
         (11, PHASE11_LOG_FILE, ("evaluation.metrics", "evaluation.statistical_tests", "utils.simulation_artifacts")),
         (12, PHASE12_LOG_FILE, ("dashboard.app",)),
+        (
+            13,
+            PHASE13_LOG_FILE,
+            (
+                "evaluation.validation",
+                "simulation.simulator",
+                "evaluation.metrics",
+                "evaluation.statistical_tests",
+                "utils.simulation_artifacts",
+            ),
+        ),
     )
 
 

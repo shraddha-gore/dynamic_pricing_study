@@ -7,6 +7,9 @@ import pandas as pd
 from config import (
     COL_STOCK_CODE,
     PHASE11_METRIC_COLUMNS,
+    PHASE11_PRODUCT_METRIC_LEVEL,
+    PHASE11_STRATEGY_METRIC_LEVEL,
+    PHASE11_SUMMARY_STOCK_CODE,
     PHASE11_STRATEGY_METRICS_PATH,
     PHASE11_STRATEGY_SUMMARY_PATH,
     PROJECT_ROOT,
@@ -59,13 +62,13 @@ def _compute_product_metrics(all_results_df: pd.DataFrame) -> pd.DataFrame:
     price_std = grouped["chosen_price"].std(ddof=0).reset_index(name="price_std")
     product_metrics = product_metrics.merge(price_std, on=["strategy_name", COL_STOCK_CODE], how="inner")
     product_metrics = product_metrics.rename(columns={"strategy_name": "strategy"})
-    return _finalise_metrics_frame(product_metrics, metric_level="product")
+    return _finalise_metrics_frame(product_metrics, metric_level=PHASE11_PRODUCT_METRIC_LEVEL)
 
 
 def _compute_strategy_metrics(product_metrics_df: pd.DataFrame) -> pd.DataFrame:
     strategy_metrics = product_metrics_df.groupby("strategy", sort=True).agg(**_strategy_metric_aggregations()).reset_index()
-    strategy_metrics[COL_STOCK_CODE] = "ALL"
-    return _finalise_metrics_frame(strategy_metrics, metric_level="strategy")
+    strategy_metrics[COL_STOCK_CODE] = PHASE11_SUMMARY_STOCK_CODE
+    return _finalise_metrics_frame(strategy_metrics, metric_level=PHASE11_STRATEGY_METRIC_LEVEL)
 
 
 def _build_summary(strategy_metrics_df: pd.DataFrame) -> dict[str, dict[str, float]]:

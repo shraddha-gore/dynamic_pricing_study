@@ -15,11 +15,6 @@ def parse_args() -> argparse.Namespace:
         help="Workflow mode (default: full)",
     )
     parser.add_argument(
-        "--phase",
-        type=int,
-        help="Optional specific phase to run (for debugging/development)",
-    )
-    parser.add_argument(
         "--simulate",
         choices=[*PHASE7_STRATEGIES, "all"],
         help="Run Phase 7 simulation for one strategy (rule|ml|hybrid) or all strategies (all)",
@@ -28,6 +23,11 @@ def parse_args() -> argparse.Namespace:
         "--evaluate",
         action="store_true",
         help="Run Phase 11 evaluation on completed simulation outputs",
+    )
+    parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="Run Phase 13 system validation and reproducibility checks",
     )
     return parser.parse_args()
 
@@ -71,6 +71,19 @@ def _handle_evaluation() -> None:
     )
 
 
+def _handle_validation() -> None:
+    from evaluation.validation import run_phase13
+
+    _run_logged(
+        phases=[13],
+        init_message="Dynamic Pricing Study runner initialised for Phase 13 validation.",
+        failure_message="Phase 13 validation failed.",
+        success_message="Phase 13 validation completed successfully.",
+        success_output="Phase 13 validation completed successfully.",
+        runner=run_phase13,
+    )
+
+
 def _handle_single_strategy_simulation(strategy_name: str) -> None:
     from simulation.simulator import run_phase7
 
@@ -104,28 +117,11 @@ def _handle_all_strategy_simulations() -> None:
     )
 
 
-def _handle_phase_run(phase_number: int) -> None:
-    from pipeline.runner import available_phases, run_phase
-
-    if phase_number not in available_phases():
-        raise ValueError(f"Unsupported phase: {phase_number}")
-
-    _run_logged(
-        phases=[phase_number],
-        init_message=f"Dynamic Pricing Study runner initialised for phase {phase_number}.",
-        failure_message=f"Phase {phase_number} failed.",
-        success_message=f"Phase {phase_number} completed successfully.",
-        success_output=f"Phase {phase_number} completed successfully.",
-        runner=lambda: run_phase(phase_number),
-    )
-
-
 def _handle_full_workflow() -> None:
-    from pipeline.runner import run_workflow
-    from pipeline.runner import available_phases
+    from pipeline.runner import run_workflow, workflow_phases
 
     _run_logged(
-        phases=available_phases(),
+        phases=workflow_phases(),
         init_message="Dynamic Pricing Study runner initialised for full workflow.",
         failure_message="Full workflow failed.",
         success_message="Full workflow completed successfully.",
@@ -148,8 +144,8 @@ def main() -> None:
         _handle_all_strategy_simulations()
         return
 
-    if args.phase is not None:
-        _handle_phase_run(args.phase)
+    if args.validate:
+        _handle_validation()
         return
 
     _handle_full_workflow()
