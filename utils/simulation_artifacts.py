@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from config import PHASE11_PAIRING_KEYS, PHASE7_STRATEGIES, PROJECT_ROOT, SIMULATION_RESULTS_PATHS
+from config import EVALUATION_PAIRING_KEYS, SIMULATION_STRATEGIES, PROJECT_ROOT, SIMULATION_RESULTS_PATHS
 from preprocessing.common import configured_path_from_map
-from utils.data_contracts import validate_phase7_results
+from utils.data_contracts import validate_simulation_results
 
 logger = logging.getLogger(__name__)
 
@@ -15,35 +15,35 @@ def simulation_result_path(strategy_name: str) -> Path:
 
 
 def ensure_required_simulation_outputs() -> None:
-    missing_paths = [simulation_result_path(strategy_name) for strategy_name in PHASE7_STRATEGIES if not simulation_result_path(strategy_name).exists()]
+    missing_paths = [simulation_result_path(strategy_name) for strategy_name in SIMULATION_STRATEGIES if not simulation_result_path(strategy_name).exists()]
     if missing_paths:
-        logger.error("Phase 11 evaluation cannot start; missing simulation outputs: %s", missing_paths)
-        raise RuntimeError("Missing simulation outputs required for Phase 11 evaluation")
+        logger.error("Evaluation cannot start; missing simulation outputs: %s", missing_paths)
+        raise RuntimeError("Missing simulation outputs required for Evaluation")
 
 
 def validate_strategy_results(df: pd.DataFrame, strategy_name: str) -> pd.DataFrame:
-    validate_phase7_results(df)
+    validate_simulation_results(df)
 
     if not (df["strategy_name"] == strategy_name).all():
         raise ValueError(
-            f"Phase 11 evaluation validation failed: strategy_name column does not match '{strategy_name}'."
+            f"Evaluation validation failed: strategy_name column does not match '{strategy_name}'."
         )
-    if df.duplicated(PHASE11_PAIRING_KEYS).any():
+    if df.duplicated(EVALUATION_PAIRING_KEYS).any():
         raise ValueError(
-            "Phase 11 evaluation validation failed: duplicate "
-            f"({', '.join(PHASE11_PAIRING_KEYS)}) rows found for '{strategy_name}'."
+            "Evaluation validation failed: duplicate "
+            f"({', '.join(EVALUATION_PAIRING_KEYS)}) rows found for '{strategy_name}'."
         )
 
-    return df.sort_values(PHASE11_PAIRING_KEYS, kind="mergesort").reset_index(drop=True)
+    return df.sort_values(EVALUATION_PAIRING_KEYS, kind="mergesort").reset_index(drop=True)
 
 
 def load_strategy_results() -> dict[str, pd.DataFrame]:
     ensure_required_simulation_outputs()
 
     results_by_strategy: dict[str, pd.DataFrame] = {}
-    for strategy_name in PHASE7_STRATEGIES:
+    for strategy_name in SIMULATION_STRATEGIES:
         result_path = simulation_result_path(strategy_name)
-        logger.info("Loading Phase 7 simulation results for strategy: %s from %s", strategy_name, result_path)
+        logger.info("Loading Simulation results for strategy: %s from %s", strategy_name, result_path)
         result_df = pd.read_parquet(result_path)
         results_by_strategy[strategy_name] = validate_strategy_results(result_df, strategy_name)
 

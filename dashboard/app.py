@@ -13,21 +13,22 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 
 from config import (
     COL_STOCK_CODE,
-    PHASE7_STRATEGIES,
-    PHASE11_PRODUCT_METRIC_LEVEL,
-    PHASE11_STATISTICAL_TESTS_PATH,
-    PHASE11_STRATEGY_METRICS_PATH,
-    PHASE11_STRATEGY_SUMMARY_PATH,
-    PHASE12_PRODUCT_COMPARISON_METRICS,
-    PHASE12_PRODUCT_METRIC_COLUMNS,
-    PHASE12_SIGNIFICANCE_THRESHOLD,
-    PHASE12_STATISTICAL_TEST_LABELS,
-    PHASE12_SUMMARY_METRICS,
-    PHASE12_TEST_LABELS,
+    SIMULATION_STRATEGIES,
+    EVALUATION_PRODUCT_METRIC_LEVEL,
+    EVALUATION_STATISTICAL_TESTS_PATH,
+    EVALUATION_STRATEGY_METRICS_PATH,
+    EVALUATION_STRATEGY_SUMMARY_PATH,
+    DASHBOARD_PRODUCT_COMPARISON_METRICS,
+    DASHBOARD_PRODUCT_METRIC_COLUMNS,
+    DASHBOARD_SIGNIFICANCE_THRESHOLD,
+    DASHBOARD_STATISTICAL_TEST_LABELS,
+    DASHBOARD_SUMMARY_METRICS,
+    DASHBOARD_TEST_LABELS,
     PROJECT_ROOT,
 )
+from pipeline.execution import DASHBOARD_COMMAND, command_logging_targets
 from preprocessing.common import configured_path
-from utils.data_contracts import validate_phase11_metrics, validate_phase11_summary, validate_phase11_tests
+from utils.data_contracts import validate_evaluation_metrics, validate_evaluation_summary, validate_evaluation_tests
 from utils.logging_config import configure_logging
 
 logger = logging.getLogger("dashboard.app")
@@ -41,33 +42,33 @@ def _format_number(value: float) -> str:
     return f"{value:,.6f}" if abs(value) < 10 else f"{value:,.3f}"
 
 
-def _phase11_input_paths() -> dict[str, str]:
+def _evaluation_input_paths() -> dict[str, str]:
     return {
-        "strategy_metrics": str(configured_path(PROJECT_ROOT, PHASE11_STRATEGY_METRICS_PATH)),
-        "strategy_summary": str(configured_path(PROJECT_ROOT, PHASE11_STRATEGY_SUMMARY_PATH)),
-        "statistical_tests": str(configured_path(PROJECT_ROOT, PHASE11_STATISTICAL_TESTS_PATH)),
+        "strategy_metrics": str(configured_path(PROJECT_ROOT, EVALUATION_STRATEGY_METRICS_PATH)),
+        "strategy_summary": str(configured_path(PROJECT_ROOT, EVALUATION_STRATEGY_SUMMARY_PATH)),
+        "statistical_tests": str(configured_path(PROJECT_ROOT, EVALUATION_STATISTICAL_TESTS_PATH)),
     }
 
 
 def _ensure_file_exists(path_label: str, path_value: str) -> None:
     path = configured_path(PROJECT_ROOT, path_value)
     if not path.exists():
-        raise FileNotFoundError(f"Missing required Phase 11 artifact: {path_label} -> {path}")
+        raise FileNotFoundError(f"Missing required Evaluation artifact: {path_label} -> {path}")
 
 
-def _phase12_product_metrics_view(metrics_df: pd.DataFrame) -> pd.DataFrame:
+def _dashboard_product_metrics_view(metrics_df: pd.DataFrame) -> pd.DataFrame:
     product_metrics_df = metrics_df.loc[
-        metrics_df["metric_level"] == PHASE11_PRODUCT_METRIC_LEVEL,
-        PHASE12_PRODUCT_METRIC_COLUMNS,
+        metrics_df["metric_level"] == EVALUATION_PRODUCT_METRIC_LEVEL,
+        DASHBOARD_PRODUCT_METRIC_COLUMNS,
     ].copy()
     if product_metrics_df.empty:
         raise ValueError("strategy_metrics.parquet does not contain any product-level rows.")
 
     actual_strategies = set(product_metrics_df["strategy"].astype(str).unique().tolist())
-    expected_strategies = set(PHASE7_STRATEGIES)
+    expected_strategies = set(SIMULATION_STRATEGIES)
     if actual_strategies != expected_strategies:
         raise ValueError(
-            "Phase 12 product-level metrics validation failed: strategy mismatch after product filtering.\n"
+            "Dashboard product-level metrics validation failed: strategy mismatch after product filtering.\n"
             f"Expected strategies: {sorted(expected_strategies)}\n"
             f"Actual strategies:   {sorted(actual_strategies)}"
         )
@@ -79,24 +80,24 @@ def _phase12_product_metrics_view(metrics_df: pd.DataFrame) -> pd.DataFrame:
 
 @st.cache_data(show_spinner=False)
 def load_dashboard_inputs() -> tuple[pd.DataFrame, dict[str, dict[str, float]], dict[str, dict[str, dict[str, dict[str, float]]]]]:
-    _ensure_file_exists("strategy_metrics", PHASE11_STRATEGY_METRICS_PATH)
-    _ensure_file_exists("strategy_summary", PHASE11_STRATEGY_SUMMARY_PATH)
-    _ensure_file_exists("statistical_tests", PHASE11_STATISTICAL_TESTS_PATH)
+    _ensure_file_exists("strategy_metrics", EVALUATION_STRATEGY_METRICS_PATH)
+    _ensure_file_exists("strategy_summary", EVALUATION_STRATEGY_SUMMARY_PATH)
+    _ensure_file_exists("statistical_tests", EVALUATION_STATISTICAL_TESTS_PATH)
 
-    metrics_df = pd.read_parquet(configured_path(PROJECT_ROOT, PHASE11_STRATEGY_METRICS_PATH))
+    metrics_df = pd.read_parquet(configured_path(PROJECT_ROOT, EVALUATION_STRATEGY_METRICS_PATH))
     summary_payload = json.loads(
-        configured_path(PROJECT_ROOT, PHASE11_STRATEGY_SUMMARY_PATH).read_text(encoding="utf-8")
+        configured_path(PROJECT_ROOT, EVALUATION_STRATEGY_SUMMARY_PATH).read_text(encoding="utf-8")
     )
     statistical_payload = json.loads(
-        configured_path(PROJECT_ROOT, PHASE11_STATISTICAL_TESTS_PATH).read_text(encoding="utf-8")
+        configured_path(PROJECT_ROOT, EVALUATION_STATISTICAL_TESTS_PATH).read_text(encoding="utf-8")
     )
 
-    validate_phase11_metrics(metrics_df)
-    validate_phase11_summary(summary_payload)
-    validate_phase11_tests(statistical_payload)
+    validate_evaluation_metrics(metrics_df)
+    validate_evaluation_summary(summary_payload)
+    validate_evaluation_tests(statistical_payload)
 
     return (
-        _phase12_product_metrics_view(metrics_df),
+        _dashboard_product_metrics_view(metrics_df),
         summary_payload,
         statistical_payload,
     )
@@ -106,7 +107,7 @@ def _summary_frame(summary_payload: dict[str, dict[str, float]]) -> pd.DataFrame
     summary_df = pd.DataFrame.from_dict(summary_payload, orient="index")
     summary_df.index.name = "strategy"
     summary_df = summary_df.reset_index()
-    return summary_df[["strategy", *PHASE12_SUMMARY_METRICS]]
+    return summary_df[["strategy", *DASHBOARD_SUMMARY_METRICS]]
 
 
 def _render_kpi_summary(summary_df: pd.DataFrame) -> None:
@@ -118,11 +119,11 @@ def _render_kpi_summary(summary_df: pd.DataFrame) -> None:
         strategy_row = summary_df.loc[summary_df["strategy"] == strategy_name].iloc[0]
         with column:
             st.markdown(f"**{strategy_name.upper()}**")
-            for metric_name in PHASE12_SUMMARY_METRICS:
+            for metric_name in DASHBOARD_SUMMARY_METRICS:
                 st.metric(_format_metric_label(metric_name), _format_number(float(strategy_row[metric_name])))
 
     display_df = summary_df.copy()
-    for metric_name in PHASE12_SUMMARY_METRICS:
+    for metric_name in DASHBOARD_SUMMARY_METRICS:
         display_df[metric_name] = display_df[metric_name].map(lambda value: round(float(value), 6))
     st.dataframe(display_df, width="stretch", hide_index=True)
 
@@ -184,7 +185,7 @@ def _product_metric_long_frame(product_metrics_df: pd.DataFrame, stock_code: str
 
     long_df = selected_df.melt(
         id_vars=[COL_STOCK_CODE, "strategy"],
-        value_vars=PHASE12_PRODUCT_COMPARISON_METRICS,
+        value_vars=DASHBOARD_PRODUCT_COMPARISON_METRICS,
         var_name="metric",
         value_name="value",
     )
@@ -225,12 +226,12 @@ def _render_product_level_comparison(product_metrics_df: pd.DataFrame) -> None:
     selected_table = (
         product_metrics_df.loc[
             product_metrics_df[COL_STOCK_CODE] == selected_stock_code,
-            ["strategy", *PHASE12_PRODUCT_COMPARISON_METRICS],
+            ["strategy", *DASHBOARD_PRODUCT_COMPARISON_METRICS],
         ]
         .sort_values("strategy", kind="mergesort")
         .reset_index(drop=True)
     )
-    for metric_name in PHASE12_PRODUCT_COMPARISON_METRICS:
+    for metric_name in DASHBOARD_PRODUCT_COMPARISON_METRICS:
         selected_table[metric_name] = selected_table[metric_name].map(lambda value: round(float(value), 6))
     st.dataframe(selected_table, width="stretch", hide_index=True)
 
@@ -268,7 +269,7 @@ def _statistical_results_frame(
     statistical_payload: dict[str, dict[str, dict[str, dict[str, float]]]]
 ) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
-    for section_name, metric_name in PHASE12_STATISTICAL_TEST_LABELS.items():
+    for section_name, metric_name in DASHBOARD_STATISTICAL_TEST_LABELS.items():
         for comparison_name, tests in statistical_payload[section_name].items():
             for test_name, test_values in tests.items():
                 p_value = float(test_values["p_value"])
@@ -276,11 +277,11 @@ def _statistical_results_frame(
                     {
                         "Comparison": comparison_name,
                         "Metric": metric_name,
-                        "Test": PHASE12_TEST_LABELS.get(test_name, test_name),
+                        "Test": DASHBOARD_TEST_LABELS.get(test_name, test_name),
                         "Statistic": float(test_values["statistic"]),
                         "p-value": p_value,
                         "Sample Size": int(test_values["sample_size"]),
-                        "Significant": p_value < PHASE12_SIGNIFICANCE_THRESHOLD,
+                        "Significant": p_value < DASHBOARD_SIGNIFICANCE_THRESHOLD,
                     }
                 )
 
@@ -299,24 +300,24 @@ def _render_statistical_tests(statistical_payload: dict[str, dict[str, dict[str,
 
 
 def main() -> None:
-    configure_logging(phases=[12])
+    configure_logging(targets=command_logging_targets(DASHBOARD_COMMAND))
     st.set_page_config(page_title="Dynamic Pricing Study Dashboard", layout="wide")
     st.title("Dynamic Pricing Strategy Dashboard")
-    st.caption("Read-only Phase 12 dashboard backed exclusively by Phase 11 evaluation artifacts.")
+    st.caption("Read-only Dashboard backed exclusively by Evaluation artifacts.")
 
     try:
         product_metrics_df, summary_payload, statistical_payload = load_dashboard_inputs()
     except Exception as exc:
-        logger.exception("Phase 12 dashboard failed to load required artifacts.")
+        logger.exception("Dashboard failed to load required artifacts.")
         st.error(str(exc))
         st.stop()
 
     logger.info(
-        "Phase 12 dashboard loaded successfully. Product metric rows: %s | Strategies: %s | Stock codes: %s | Inputs: %s",
+        "Dashboard loaded successfully. Product metric rows: %s | Strategies: %s | Stock codes: %s | Inputs: %s",
         len(product_metrics_df),
         sorted(product_metrics_df["strategy"].unique().tolist()),
         sorted(product_metrics_df[COL_STOCK_CODE].unique().tolist()),
-        _phase11_input_paths(),
+        _evaluation_input_paths(),
     )
 
     summary_df = _summary_frame(summary_payload)

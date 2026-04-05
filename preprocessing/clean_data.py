@@ -20,9 +20,9 @@ from config import (
     COL_STOCK_CODE,
     EXCLUDED_STOCK_CODES,
     INVOICE_CANCELLATION_PREFIX,
-    PHASE2_PRICE_DESCRIBE_PERCENTILES,
-    PHASE2_RAW_REQUIRED_COLUMNS,
-    PHASE2_STRING_COLUMNS,
+    CLEANING_PRICE_DESCRIBE_PERCENTILES,
+    CLEANING_RAW_REQUIRED_COLUMNS,
+    CLEANING_STRING_COLUMNS,
     PRICE_OUTLIER_REVIEW_TOP_N,
     PRICE_OUTLIER_THRESHOLD,
     PROJECT_ROOT,
@@ -46,11 +46,11 @@ def _output_path() -> Path:
 
 
 def _validate_columns(df: pd.DataFrame) -> None:
-    ensure_required_columns(df, PHASE2_RAW_REQUIRED_COLUMNS, "Phase 2 cleaning")
+    ensure_required_columns(df, CLEANING_RAW_REQUIRED_COLUMNS, "Cleaning")
 
 
 def _standardize_strings(df: pd.DataFrame) -> pd.DataFrame:
-    for col in PHASE2_STRING_COLUMNS:
+    for col in CLEANING_STRING_COLUMNS:
         df[col] = df[col].astype("string").str.strip()
     df[COL_INVOICE] = df[COL_INVOICE].str.upper()
     df[COL_STOCK_CODE] = df[COL_STOCK_CODE].str.upper()
@@ -92,7 +92,7 @@ def _log_price_distribution(df: pd.DataFrame) -> None:
         logger.warning("No positive prices available for outlier inspection.")
         return
 
-    summary = positive_prices.describe(percentiles=PHASE2_PRICE_DESCRIBE_PERCENTILES)
+    summary = positive_prices.describe(percentiles=CLEANING_PRICE_DESCRIBE_PERCENTILES)
     logger.info(
         (
             "Positive price distribution | min: %.4f, median: %.4f, p95: %.4f, "
@@ -156,10 +156,10 @@ def _run_quality_checks(df: pd.DataFrame) -> None:
         raise ValueError(f"Non-null quality check failed: {violating}")
 
 
-def run_phase2() -> None:
+def run_clean_data() -> None:
     csv_path = _csv_path()
     output_path = _output_path()
-    logger.info("Phase 2 data cleaning started.")
+    logger.info("Cleaning data cleaning started.")
     logger.info("Input dataset: %s", csv_path)
     logger.info("Output dataset: %s", output_path)
 
@@ -226,8 +226,8 @@ def run_phase2() -> None:
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(output_path, index=False)
-    logger.info("Phase 2 data cleaning completed. Saved cleaned data to %s", output_path)
+    logger.info("Cleaning data cleaning completed. Saved cleaned data to %s", output_path)
 
 
 if __name__ == "__main__":
-    run_phase2()
+    run_clean_data()

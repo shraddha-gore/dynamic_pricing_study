@@ -36,11 +36,11 @@ def _output_path() -> Path:
     return configured_path(PROJECT_ROOT, DAILY_AGG_DATA_PATH)
 
 
-def run_phase4() -> None:
+def run_aggregate_daily() -> None:
     input_path = _input_path()
     selected_products_input_path = _selected_products_input_path()
     output_path = _output_path()
-    logger.info("Phase 4 daily aggregation started.")
+    logger.info("Aggregation started.")
     logger.info("Input cleaned dataset: %s", input_path)
     logger.info("Input selected products dataset: %s", selected_products_input_path)
     logger.info("Output aggregated dataset: %s", output_path)
@@ -66,7 +66,7 @@ def run_phase4() -> None:
     ensure_required_columns(
         df,
         [COL_STOCK_CODE, COL_INVOICE_DATE, COL_QUANTITY, COL_PRICE],
-        "Phase 4 aggregation",
+        "Aggregation",
     )
 
     input_rows = len(df)
@@ -106,7 +106,7 @@ def run_phase4() -> None:
     max_date = daily["invoice_day"].max()
     logger.info(
         (
-            "Phase 4 summary | input rows: %s | filtered rows: %s | output rows: %s | "
+            "Aggregation summary | input rows: %s | filtered rows: %s | output rows: %s | "
             "products: %s | date range: %s to %s"
         ),
         input_rows,
@@ -116,8 +116,8 @@ def run_phase4() -> None:
         min_date.date().isoformat(),
         max_date.date().isoformat(),
     )
-    logger.info("Phase 4 daily aggregation completed. Saved aggregated data to %s", output_path)
+    logger.info("Aggregation completed. Saved aggregated data to %s", output_path)
 
 
 if __name__ == "__main__":
-    run_phase4()
+    run_aggregate_daily()

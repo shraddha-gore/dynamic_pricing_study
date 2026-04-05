@@ -11,7 +11,7 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 
 from config import (
     INVOICE_CANCELLATION_PREFIX,
-    PHASE1_REPORT_FILE,
+    RAW_INSPECTION_REPORT_FILE,
     PROJECT_ROOT,
     RAW_COL_COUNTRY,
     RAW_COL_INVOICE,
@@ -33,7 +33,7 @@ def _csv_path() -> Path:
 
 
 def _report_path() -> Path:
-    return configured_path(PROJECT_ROOT, f"{REPORTS_PATH}{PHASE1_REPORT_FILE}")
+    return configured_path(PROJECT_ROOT, f"{REPORTS_PATH}{RAW_INSPECTION_REPORT_FILE}")
 
 
 def _records(df: pd.DataFrame, max_rows: int | None = None) -> list[dict[str, object]]:
@@ -129,7 +129,7 @@ def build_report_payload(df: pd.DataFrame) -> dict[str, object]:
             date_range_text = f"Unable to parse valid dates. Unparseable rows: {missing_dates:,}"
 
     return {
-        "phase": 1,
+        "step": "inspection",
         "name": "raw_data_inspection",
         "source_file": str(csv_path),
         "dataset_shape": {"rows": int(shape_rows), "columns": int(shape_cols)},
@@ -147,7 +147,7 @@ def build_report_payload(df: pd.DataFrame) -> dict[str, object]:
         "country_distribution_top20": _records(country_distribution, max_rows=20),
         "revenue_by_country_top20": _records(revenue_country, max_rows=20),
         "date_range_validation": date_range_text,
-        "frozen_decisions_for_next_phase": [
+        "frozen_decisions_for_next_step": [
             "Keep UK only",
             "Remove cancelled invoices",
             "Remove negative quantities",
@@ -157,8 +157,8 @@ def build_report_payload(df: pd.DataFrame) -> dict[str, object]:
     }
 
 
-def run_phase1() -> None:
-    logger.info("Phase 1 raw inspection started.")
+def run_raw_inspection() -> None:
+    logger.info("Inspection started.")
     csv_path = _csv_path()
     report_path = _report_path()
 
@@ -170,8 +170,8 @@ def run_phase1() -> None:
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_payload = build_report_payload(df)
     report_path.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
-    logger.info("Phase 1 raw inspection completed. Report saved to %s", report_path)
+    logger.info("Inspection completed. Report saved to %s", report_path)
 
 
 if __name__ == "__main__":
-    run_phase1()
+    run_raw_inspection()

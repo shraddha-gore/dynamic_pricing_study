@@ -6,12 +6,12 @@ import pandas as pd
 
 from config import (
     COL_STOCK_CODE,
-    PHASE11_METRIC_COLUMNS,
-    PHASE11_PRODUCT_METRIC_LEVEL,
-    PHASE11_STRATEGY_METRIC_LEVEL,
-    PHASE11_SUMMARY_STOCK_CODE,
-    PHASE11_STRATEGY_METRICS_PATH,
-    PHASE11_STRATEGY_SUMMARY_PATH,
+    EVALUATION_METRIC_COLUMNS,
+    EVALUATION_PRODUCT_METRIC_LEVEL,
+    EVALUATION_STRATEGY_METRIC_LEVEL,
+    EVALUATION_SUMMARY_STOCK_CODE,
+    EVALUATION_STRATEGY_METRICS_PATH,
+    EVALUATION_STRATEGY_SUMMARY_PATH,
     PROJECT_ROOT,
 )
 from preprocessing.common import configured_path
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 def _summary_metric_columns() -> list[str]:
     return [
         column
-        for column in PHASE11_METRIC_COLUMNS
+        for column in EVALUATION_METRIC_COLUMNS
         if column not in {COL_STOCK_CODE, "strategy", "metric_level"}
     ]
 
@@ -52,7 +52,7 @@ def _strategy_metric_aggregations() -> dict[str, tuple[str, str]]:
 def _finalise_metrics_frame(metrics_df: pd.DataFrame, metric_level: str) -> pd.DataFrame:
     finalised_df = metrics_df.copy()
     finalised_df["metric_level"] = metric_level
-    return finalised_df[PHASE11_METRIC_COLUMNS]
+    return finalised_df[EVALUATION_METRIC_COLUMNS]
 
 
 def _compute_product_metrics(all_results_df: pd.DataFrame) -> pd.DataFrame:
@@ -62,13 +62,13 @@ def _compute_product_metrics(all_results_df: pd.DataFrame) -> pd.DataFrame:
     price_std = grouped["chosen_price"].std(ddof=0).reset_index(name="price_std")
     product_metrics = product_metrics.merge(price_std, on=["strategy_name", COL_STOCK_CODE], how="inner")
     product_metrics = product_metrics.rename(columns={"strategy_name": "strategy"})
-    return _finalise_metrics_frame(product_metrics, metric_level=PHASE11_PRODUCT_METRIC_LEVEL)
+    return _finalise_metrics_frame(product_metrics, metric_level=EVALUATION_PRODUCT_METRIC_LEVEL)
 
 
 def _compute_strategy_metrics(product_metrics_df: pd.DataFrame) -> pd.DataFrame:
     strategy_metrics = product_metrics_df.groupby("strategy", sort=True).agg(**_strategy_metric_aggregations()).reset_index()
-    strategy_metrics[COL_STOCK_CODE] = PHASE11_SUMMARY_STOCK_CODE
-    return _finalise_metrics_frame(strategy_metrics, metric_level=PHASE11_STRATEGY_METRIC_LEVEL)
+    strategy_metrics[COL_STOCK_CODE] = EVALUATION_SUMMARY_STOCK_CODE
+    return _finalise_metrics_frame(strategy_metrics, metric_level=EVALUATION_STRATEGY_METRIC_LEVEL)
 
 
 def _build_summary(strategy_metrics_df: pd.DataFrame) -> dict[str, dict[str, float]]:
@@ -81,7 +81,7 @@ def _build_summary(strategy_metrics_df: pd.DataFrame) -> dict[str, dict[str, flo
 
 
 def compute_metrics() -> tuple[pd.DataFrame, dict[str, dict[str, float]]]:
-    logger.info("Phase 11 metrics computation started.")
+    logger.info("Evaluation metrics computation started.")
     results_by_strategy = load_strategy_results()
     all_results_df = pd.concat(results_by_strategy.values(), ignore_index=True)
 
@@ -93,8 +93,8 @@ def compute_metrics() -> tuple[pd.DataFrame, dict[str, dict[str, float]]]:
 
     summary = _build_summary(strategy_metrics_df)
 
-    metrics_output_path = configured_path(PROJECT_ROOT, PHASE11_STRATEGY_METRICS_PATH)
-    summary_output_path = configured_path(PROJECT_ROOT, PHASE11_STRATEGY_SUMMARY_PATH)
+    metrics_output_path = configured_path(PROJECT_ROOT, EVALUATION_STRATEGY_METRICS_PATH)
+    summary_output_path = configured_path(PROJECT_ROOT, EVALUATION_STRATEGY_SUMMARY_PATH)
     metrics_output_path.parent.mkdir(parents=True, exist_ok=True)
     summary_output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -102,7 +102,7 @@ def compute_metrics() -> tuple[pd.DataFrame, dict[str, dict[str, float]]]:
     summary_output_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     logger.info(
-        "Phase 11 metrics written successfully. Rows: %s | Metrics path: %s | Summary path: %s",
+        "Evaluation metrics written successfully. Rows: %s | Metrics path: %s | Summary path: %s",
         len(combined_metrics_df),
         metrics_output_path,
         summary_output_path,

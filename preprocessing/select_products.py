@@ -18,7 +18,7 @@ from config import (
     COL_STOCK_CODE,
     MIN_ACTIVE_DAYS,
     MIN_PRICE_STD,
-    PHASE3_REPORT_FILE,
+    PRODUCT_SELECTION_REPORT_FILE,
     PROJECT_ROOT,
     REPORTS_PATH,
     SELECTED_PRODUCTS_PATH,
@@ -35,7 +35,7 @@ def _input_path() -> Path:
 
 
 def _report_path() -> Path:
-    return configured_path(PROJECT_ROOT, f"{REPORTS_PATH}{PHASE3_REPORT_FILE}")
+    return configured_path(PROJECT_ROOT, f"{REPORTS_PATH}{PRODUCT_SELECTION_REPORT_FILE}")
 
 
 def _selected_products_output_path() -> Path:
@@ -52,7 +52,7 @@ def _validate_columns(df: pd.DataFrame) -> None:
             COL_PRICE,
             COL_QUANTITY,
         ],
-        "Phase 3 product selection",
+        "Product selection",
     )
 
 
@@ -73,7 +73,7 @@ def _build_description_map(df: pd.DataFrame) -> pd.Series:
 
 def _build_report_payload(metrics: pd.DataFrame, eligible: pd.DataFrame, selected: pd.DataFrame) -> dict[str, object]:
     return {
-        "phase": 3,
+        "step": "product_selection",
         "name": "product_selection",
         "selection_parameters": {
             "min_price_std": float(MIN_PRICE_STD),
@@ -89,11 +89,11 @@ def _build_report_payload(metrics: pd.DataFrame, eligible: pd.DataFrame, selecte
     }
 
 
-def run_phase3() -> None:
+def run_select_products() -> None:
     input_path = _input_path()
     report_path = _report_path()
     selected_products_output_path = _selected_products_output_path()
-    logger.info("Phase 3 product selection started.")
+    logger.info("Product selection started.")
     logger.info("Input dataset: %s", input_path)
     logger.info("Output report: %s", report_path)
     logger.info("Output selected products dataset: %s", selected_products_output_path)
@@ -107,11 +107,11 @@ def run_phase3() -> None:
     df[COL_INVOICE_DATE] = pd.to_datetime(df[COL_INVOICE_DATE], errors="coerce", format="mixed")
     invalid_dates = int(df[COL_INVOICE_DATE].isna().sum())
     if invalid_dates:
-        logger.info("Dropping rows with invalid invoice dates in Phase 3: %s", invalid_dates)
+        logger.info("Dropping rows with invalid invoice dates in Product selection: %s", invalid_dates)
         df = df[df[COL_INVOICE_DATE].notna()].copy()
 
     if df.empty:
-        raise ValueError("Phase 3 cannot continue: cleaned dataset is empty after date validation.")
+        raise ValueError("Product selection cannot continue: cleaned dataset is empty after date validation.")
 
     df["invoice_day"] = df[COL_INVOICE_DATE].dt.date
     df["revenue_line"] = df[COL_PRICE] * df[COL_QUANTITY]
@@ -150,7 +150,7 @@ def run_phase3() -> None:
     ].reset_index(drop=True)
 
     validate_selected_products(selected)
-    logger.info("Selected top %s products for downstream phases.", SELECTED_PRODUCT_COUNT)
+    logger.info("Selected top %s products for downstream build steps.", SELECTED_PRODUCT_COUNT)
 
     report_path.parent.mkdir(parents=True, exist_ok=True)
     selected_products_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -158,11 +158,11 @@ def run_phase3() -> None:
     report_payload = _build_report_payload(metrics, eligible, selected)
     report_path.write_text(json.dumps(report_payload, indent=2), encoding="utf-8")
     logger.info(
-        "Phase 3 product selection completed. Saved report to %s and selected products to %s",
+        "Product selection completed. Saved report to %s and selected products to %s",
         report_path,
         selected_products_output_path,
     )
 
 
 if __name__ == "__main__":
-    run_phase3()
+    run_select_products()

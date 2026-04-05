@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import ttest_rel, wilcoxon
 
-from config import PHASE11_COMPARISONS, PHASE11_PAIRING_KEYS, PHASE11_STATISTICAL_TESTS_PATH, PROJECT_ROOT
+from config import EVALUATION_COMPARISONS, EVALUATION_PAIRING_KEYS, EVALUATION_STATISTICAL_TESTS_PATH, PROJECT_ROOT
 from preprocessing.common import configured_path
 from utils.simulation_artifacts import load_strategy_results
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def _test_output_path():
-    return configured_path(PROJECT_ROOT, PHASE11_STATISTICAL_TESTS_PATH)
+    return configured_path(PROJECT_ROOT, EVALUATION_STATISTICAL_TESTS_PATH)
 
 
 def _align_results(
@@ -24,17 +24,17 @@ def _align_results(
 ) -> pd.DataFrame:
     aligned_df = left_df.merge(
         right_df,
-        on=PHASE11_PAIRING_KEYS,
+        on=EVALUATION_PAIRING_KEYS,
         how="inner",
         suffixes=(f"_{left_strategy}", f"_{right_strategy}"),
     )
 
     if len(aligned_df) != len(left_df) or len(aligned_df) != len(right_df):
         raise ValueError(
-            f"Phase 11 statistical testing alignment failed for '{left_strategy}' vs '{right_strategy}'."
+            f"Evaluation statistical testing alignment failed for '{left_strategy}' vs '{right_strategy}'."
         )
 
-    return aligned_df.sort_values(PHASE11_PAIRING_KEYS, kind="mergesort").reset_index(drop=True)
+    return aligned_df.sort_values(EVALUATION_PAIRING_KEYS, kind="mergesort").reset_index(drop=True)
 
 
 def _serialise_test_result(statistic: float, p_value: float, sample_size: int) -> dict[str, float | int]:
@@ -51,7 +51,7 @@ def _run_paired_tests(left_values: pd.Series, right_values: pd.Series) -> dict[s
     sample_size = len(left_array)
 
     if sample_size == 0:
-        raise ValueError("Phase 11 statistical testing failed: no paired observations available.")
+        raise ValueError("Evaluation statistical testing failed: no paired observations available.")
 
     differences = left_array - right_array
     if np.allclose(differences, 0.0):
@@ -88,7 +88,7 @@ def _comparison_test_results(
 
 
 def run_tests() -> dict[str, dict[str, dict[str, dict[str, float | int]]]]:
-    logger.info("Phase 11 statistical testing started.")
+    logger.info("Evaluation statistical testing started.")
     results_by_strategy = load_strategy_results()
 
     statistical_results = {
@@ -96,7 +96,7 @@ def run_tests() -> dict[str, dict[str, dict[str, dict[str, float | int]]]]:
         "stability_tests": {},
     }
 
-    for comparison_name, (left_strategy, right_strategy) in PHASE11_COMPARISONS.items():
+    for comparison_name, (left_strategy, right_strategy) in EVALUATION_COMPARISONS.items():
         aligned_df = _align_results(
             results_by_strategy[left_strategy],
             results_by_strategy[right_strategy],
@@ -111,5 +111,5 @@ def run_tests() -> dict[str, dict[str, dict[str, dict[str, float | int]]]]:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(statistical_results, indent=2), encoding="utf-8")
 
-    logger.info("Phase 11 statistical tests written successfully to %s", output_path)
+    logger.info("Evaluation statistical tests written successfully to %s", output_path)
     return statistical_results

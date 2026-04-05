@@ -17,44 +17,44 @@ LOGS_PATH = "logs/"
 # -----------------------------
 # Processed data artifacts
 # -----------------------------
-# Phase 2
+# Cleaning
 CLEAN_DATA_PATH = "data/processed/clean_transactions.parquet"
 
-# Phase 3
+# Product selection
 SELECTED_PRODUCTS_PATH = "data/processed/selected_products.parquet"
 
-# Phase 4
+# Aggregation
 DAILY_AGG_DATA_PATH = "data/processed/daily_product_data.parquet"
 
-# Phase 5
+# Feature engineering
 FEATURE_TRAIN_DATA_PATH = "data/processed/feature_train_data.parquet"
 FEATURE_TEST_DATA_PATH = "data/processed/feature_test_data.parquet"
 
-# Phase 6 model artifacts
-PHASE6_MODEL_ARTIFACT_PATH = "models/artifacts/demand_model.joblib"
-PHASE6_METRICS_PATH = "results/metrics/demand_model_metrics.json"
+# Model artifacts
+MODEL_ARTIFACT_PATH = "models/artifacts/demand_model.joblib"
+MODEL_METRICS_PATH = "results/metrics/demand_model_metrics.json"
 
-# Phase 11 evaluation artifacts
-PHASE11_STRATEGY_METRICS_PATH = "results/metrics/strategy_metrics.parquet"
-PHASE11_STRATEGY_SUMMARY_PATH = "results/metrics/strategy_summary.json"
-PHASE11_STATISTICAL_TESTS_PATH = "results/metrics/statistical_tests.json"
+# Evaluation artifacts
+EVALUATION_STRATEGY_METRICS_PATH = "results/metrics/strategy_metrics.parquet"
+EVALUATION_STRATEGY_SUMMARY_PATH = "results/metrics/strategy_summary.json"
+EVALUATION_STATISTICAL_TESTS_PATH = "results/metrics/statistical_tests.json"
 
 
 # -----------------------------
-# Phase report and log files
+# Report and log files
 # -----------------------------
-PHASE1_REPORT_FILE = "phase1_raw_data_report.json"
-PHASE1_LOG_FILE = "phase1.log"
-PHASE2_LOG_FILE = "phase2.log"
-PHASE3_REPORT_FILE = "phase3_product_selection_report.json"
-PHASE3_LOG_FILE = "phase3.log"
-PHASE4_LOG_FILE = "phase4.log"
-PHASE5_LOG_FILE = "phase5.log"
-PHASE6_LOG_FILE = "phase6.log"
-PHASE7_LOG_FILE = "phase7.log"
-PHASE11_LOG_FILE = "phase11.log"
-PHASE12_LOG_FILE = "phase12.log"
-PHASE13_LOG_FILE = "phase13.log"
+RAW_INSPECTION_REPORT_FILE = "raw_inspection_report.json"
+RAW_INSPECTION_LOG_FILE = "inspection.log"
+CLEANING_LOG_FILE = "cleaning.log"
+PRODUCT_SELECTION_REPORT_FILE = "product_selection_report.json"
+PRODUCT_SELECTION_LOG_FILE = "product_selection.log"
+DAILY_AGGREGATION_LOG_FILE = "aggregation.log"
+FEATURE_ENGINEERING_LOG_FILE = "feature_engineering.log"
+MODEL_TRAINING_LOG_FILE = "model_training.log"
+SIMULATION_LOG_FILE = "simulation.log"
+EVALUATION_LOG_FILE = "evaluation.log"
+DASHBOARD_LOG_FILE = "dashboard.log"
+VALIDATION_LOG_FILE = "validation.log"
 EXPERIMENT_LOG_FILE = "experiment.log"
 
 
@@ -102,7 +102,7 @@ RAW_TO_CANONICAL_COLUMNS = {
 
 
 # -----------------------------
-# Cross-phase experimental constants
+# Cross-domain experimental constants
 # -----------------------------
 TRAIN_SPLIT_RATIO = 0.8
 PRICE_GRID_PERCENTAGE = 0.05      # +/-5% candidate grid
@@ -113,22 +113,22 @@ RULE_PRICE_DECREASE = 0.02        # -2% adjustment for rule strategy
 
 
 # -----------------------------
-# Phase 1 constants
+# Inspection constants
 # -----------------------------
 RAW_INSPECTION_PERCENTILES = [0.01, 0.05, 0.5, 0.95, 0.99]
 
 
 # -----------------------------
-# Phase 2 constants
+# Cleaning constants
 # -----------------------------
 TARGET_COUNTRY = "United Kingdom"
 PRICE_OUTLIER_THRESHOLD = 1000.0
 PRICE_OUTLIER_REVIEW_TOP_N = 20
 INVOICE_CANCELLATION_PREFIX = "C"
 EXCLUDED_STOCK_CODES = ["DOS", "DOT", "POST", "M", "AMAZONFEE", "B"]
-PHASE2_STRING_COLUMNS = [COL_INVOICE, COL_STOCK_CODE, COL_DESCRIPTION, COL_COUNTRY]
-PHASE2_PRICE_DESCRIBE_PERCENTILES = [0.5, 0.9, 0.95, 0.99, 0.995, 0.999]
-PHASE2_RAW_REQUIRED_COLUMNS = [
+CLEANING_STRING_COLUMNS = [COL_INVOICE, COL_STOCK_CODE, COL_DESCRIPTION, COL_COUNTRY]
+CLEANING_PRICE_DESCRIBE_PERCENTILES = [0.5, 0.9, 0.95, 0.99, 0.995, 0.999]
+CLEANING_RAW_REQUIRED_COLUMNS = [
     RAW_COL_INVOICE,
     RAW_COL_STOCK_CODE,
     RAW_COL_DESCRIPTION,
@@ -138,7 +138,7 @@ PHASE2_RAW_REQUIRED_COLUMNS = [
     RAW_COL_CUSTOMER_ID,
     RAW_COL_COUNTRY,
 ]
-PHASE2_FROZEN_COLUMNS = [
+CLEANING_FROZEN_COLUMNS = [
     COL_INVOICE,
     COL_STOCK_CODE,
     COL_DESCRIPTION,
@@ -151,24 +151,24 @@ PHASE2_FROZEN_COLUMNS = [
 
 
 # -----------------------------
-# Phase 3 constants
+# Product selection constants
 # -----------------------------
 MIN_ACTIVE_DAYS = 150
 SELECTED_PRODUCT_COUNT = 5
 MIN_PRICE_STD = 0.0
-PHASE3_FROZEN_COLUMNS = [COL_STOCK_CODE, COL_DESCRIPTION, "revenue", "price_std", "active_days"]
+PRODUCT_SELECTION_FROZEN_COLUMNS = [COL_STOCK_CODE, COL_DESCRIPTION, "revenue", "price_std", "active_days"]
 
 
 # -----------------------------
-# Phase 4 constants
+# Aggregation constants
 # -----------------------------
-PHASE4_FROZEN_COLUMNS = [COL_STOCK_CODE, "invoice_day", "daily_units", "avg_daily_price", "daily_revenue"]
+DAILY_AGGREGATION_FROZEN_COLUMNS = [COL_STOCK_CODE, "invoice_day", "daily_units", "avg_daily_price", "daily_revenue"]
 
 
 # -----------------------------
-# Phase 5 constants
+# Feature engineering constants
 # -----------------------------
-PHASE5_FROZEN_COLUMNS = [
+FEATURE_DATA_FROZEN_COLUMNS = [
     COL_STOCK_CODE,
     "invoice_day",
     "daily_units",
@@ -199,9 +199,9 @@ PHASE5_FROZEN_COLUMNS = [
     "month_11",
     "month_12",
 ]
-PHASE5_WEEKDAY_COLUMNS = [f"weekday_{i}" for i in range(7)]
-PHASE5_MONTH_COLUMNS = [f"month_{i}" for i in range(1, 13)]
-PHASE5_FROZEN_FEATURE_COLUMNS = [
+FEATURE_WEEKDAY_COLUMNS = [f"weekday_{i}" for i in range(7)]
+FEATURE_MONTH_COLUMNS = [f"month_{i}" for i in range(1, 13)]
+MODEL_FEATURE_COLUMNS = [
     "lag1_units",
     "lag7_units",
     "rolling7_mean_units",
@@ -229,18 +229,17 @@ PHASE5_FROZEN_FEATURE_COLUMNS = [
 
 
 # -----------------------------
-# Phase 6 constants
+# Model training constants
 # -----------------------------
-PHASE6_MODEL_TYPE = "LinearRegression"
-PHASE6_FEATURE_COLUMNS = PHASE5_FROZEN_FEATURE_COLUMNS
-PHASE6_TARGET_COLUMN = "daily_units"
+MODEL_TYPE = "LinearRegression"
+MODEL_TARGET_COLUMN = "daily_units"
 
 
 # -----------------------------
-# Phase 7 constants
+# Simulation constants
 # -----------------------------
-PHASE7_STRATEGIES = ("rule", "ml", "hybrid")
-PHASE7_GRID_POINTS = 5
+SIMULATION_STRATEGIES = ("rule", "ml", "hybrid")
+SIMULATION_GRID_POINTS = 5
 SIMULATION_OUTPUT_PATH = "results/simulation/"
 SIMULATION_CANDIDATE_PATHS = {
     "rule": "results/simulation/rule_candidates.parquet",
@@ -252,7 +251,7 @@ SIMULATION_RESULTS_PATHS = {
     "ml": "results/simulation/ml_results.parquet",
     "hybrid": "results/simulation/hybrid_results.parquet",
 }
-PHASE7_CANDIDATE_FROZEN_COLUMNS = [
+SIMULATION_CANDIDATE_FROZEN_COLUMNS = [
     "invoice_day",
     COL_STOCK_CODE,
     "candidate_price",
@@ -260,7 +259,7 @@ PHASE7_CANDIDATE_FROZEN_COLUMNS = [
     "predicted_revenue",
     "candidate_rank_by_revenue",
 ]
-PHASE7_RESULT_FROZEN_COLUMNS = [
+SIMULATION_RESULT_FROZEN_COLUMNS = [
     "invoice_day",
     COL_STOCK_CODE,
     "base_price",
@@ -275,9 +274,9 @@ PHASE7_RESULT_FROZEN_COLUMNS = [
 
 
 # -----------------------------
-# Phase 11 constants
+# Evaluation constants
 # -----------------------------
-PHASE11_METRIC_COLUMNS = [
+EVALUATION_METRIC_COLUMNS = [
     COL_STOCK_CODE,
     "strategy",
     "metric_level",
@@ -288,16 +287,16 @@ PHASE11_METRIC_COLUMNS = [
     "max_price_jump",
     "change_frequency",
 ]
-PHASE11_PAIRING_KEYS = [COL_STOCK_CODE, "invoice_day"]
-PHASE11_COMPARISONS = {
+EVALUATION_PAIRING_KEYS = [COL_STOCK_CODE, "invoice_day"]
+EVALUATION_COMPARISONS = {
     "hybrid_vs_ml": ("hybrid", "ml"),
     "hybrid_vs_rule": ("hybrid", "rule"),
 }
-PHASE11_PRODUCT_METRIC_LEVEL = "product"
-PHASE11_STRATEGY_METRIC_LEVEL = "strategy"
-PHASE11_METRIC_LEVELS = (PHASE11_PRODUCT_METRIC_LEVEL, PHASE11_STRATEGY_METRIC_LEVEL)
-PHASE11_SUMMARY_STOCK_CODE = "ALL"
-PHASE11_SUMMARY_SCHEMA = {
+EVALUATION_PRODUCT_METRIC_LEVEL = "product"
+EVALUATION_STRATEGY_METRIC_LEVEL = "strategy"
+EVALUATION_METRIC_LEVELS = (EVALUATION_PRODUCT_METRIC_LEVEL, EVALUATION_STRATEGY_METRIC_LEVEL)
+EVALUATION_SUMMARY_STOCK_CODE = "ALL"
+EVALUATION_SUMMARY_SCHEMA = {
     "total_revenue": float,
     "mean_daily_revenue": float,
     "mean_absolute_change": float,
@@ -305,12 +304,12 @@ PHASE11_SUMMARY_SCHEMA = {
     "max_price_jump": float,
     "change_frequency": float,
 }
-PHASE11_TEST_SECTION_METRICS = {
+EVALUATION_TEST_SECTION_METRICS = {
     "revenue_tests": "predicted_revenue",
     "stability_tests": "abs_price_change",
 }
-PHASE11_TEST_NAMES = ("paired_ttest", "wilcoxon")
-PHASE11_TESTS_SCHEMA = {
+EVALUATION_TEST_NAMES = ("paired_ttest", "wilcoxon")
+EVALUATION_TESTS_SCHEMA = {
     "statistic": float,
     "p_value": float,
     "sample_size": int,
@@ -318,9 +317,9 @@ PHASE11_TESTS_SCHEMA = {
 
 
 # -----------------------------
-# Phase 12 constants
+# Dashboard constants
 # -----------------------------
-PHASE12_SUMMARY_METRICS = (
+DASHBOARD_SUMMARY_METRICS = (
     "total_revenue",
     "mean_daily_revenue",
     "mean_absolute_change",
@@ -328,26 +327,26 @@ PHASE12_SUMMARY_METRICS = (
     "max_price_jump",
     "change_frequency",
 )
-PHASE12_PRODUCT_METRIC_COLUMNS = [
+DASHBOARD_PRODUCT_METRIC_COLUMNS = [
     COL_STOCK_CODE,
     "strategy",
     "metric_level",
-    *PHASE12_SUMMARY_METRICS,
+    *DASHBOARD_SUMMARY_METRICS,
 ]
-PHASE12_PRODUCT_COMPARISON_METRICS = list(PHASE12_SUMMARY_METRICS)
-PHASE12_STATISTICAL_TEST_LABELS = dict(PHASE11_TEST_SECTION_METRICS)
-PHASE12_TEST_LABELS = {
+DASHBOARD_PRODUCT_COMPARISON_METRICS = list(DASHBOARD_SUMMARY_METRICS)
+DASHBOARD_STATISTICAL_TEST_LABELS = dict(EVALUATION_TEST_SECTION_METRICS)
+DASHBOARD_TEST_LABELS = {
     "paired_ttest": "Paired t-test",
     "wilcoxon": "Wilcoxon signed-rank test",
 }
-PHASE12_SIGNIFICANCE_THRESHOLD = 0.05
+DASHBOARD_SIGNIFICANCE_THRESHOLD = 0.05
 
 
 # -----------------------------
-# Phase 13 constants
+# Validation constants
 # -----------------------------
-PHASE13_VALIDATION_SUMMARY_PATH = "results/validation/validation_summary.json"
-PHASE13_PARAMETER_VARIATIONS = (
+VALIDATION_SUMMARY_PATH = "results/validation/validation_summary.json"
+VALIDATION_PARAMETER_VARIATIONS = (
     {
         "variation_name": "max_daily_change_0.01",
         "parameter_name": "MAX_DAILY_CHANGE",
@@ -359,9 +358,9 @@ PHASE13_PARAMETER_VARIATIONS = (
         "parameter_value": 0.7,
     },
 )
-PHASE13_RANKING_CHECKS = (
+VALIDATION_RANKING_CHECKS = (
     "ml_highest_total_revenue",
     "hybrid_lowest_mean_absolute_change",
 )
-PHASE13_RERUN_METRICS = ("total_revenue", "mean_absolute_change")
-PHASE13_RERUN_TOLERANCE = 1e-6
+VALIDATION_RERUN_METRICS = ("total_revenue", "mean_absolute_change")
+VALIDATION_RERUN_TOLERANCE = 1e-6

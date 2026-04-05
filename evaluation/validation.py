@@ -8,14 +8,14 @@ from pathlib import Path
 
 import strategies.hybrid_pricing as hybrid_pricing
 from config import (
-    PHASE11_STATISTICAL_TESTS_PATH,
-    PHASE11_STRATEGY_METRICS_PATH,
-    PHASE11_STRATEGY_SUMMARY_PATH,
-    PHASE13_PARAMETER_VARIATIONS,
-    PHASE13_RERUN_METRICS,
-    PHASE13_RERUN_TOLERANCE,
-    PHASE13_VALIDATION_SUMMARY_PATH,
-    PHASE7_STRATEGIES,
+    EVALUATION_STATISTICAL_TESTS_PATH,
+    EVALUATION_STRATEGY_METRICS_PATH,
+    EVALUATION_STRATEGY_SUMMARY_PATH,
+    VALIDATION_PARAMETER_VARIATIONS,
+    VALIDATION_RERUN_METRICS,
+    VALIDATION_RERUN_TOLERANCE,
+    VALIDATION_SUMMARY_PATH,
+    SIMULATION_STRATEGIES,
     PROJECT_ROOT,
     SIMULATION_CANDIDATE_PATHS,
     SIMULATION_RESULTS_PATHS,
@@ -23,34 +23,34 @@ from config import (
 from evaluation.metrics import compute_metrics
 from evaluation.statistical_tests import run_tests
 from preprocessing.common import configured_path, configured_path_from_map
-from simulation.simulator import run_phase7
-from utils.data_contracts import validate_phase11_summary, validate_phase13_summary
+from simulation.simulator import run_simulation
+from utils.data_contracts import validate_evaluation_summary, validate_validation_summary
 
 logger = logging.getLogger(__name__)
 
 
 def _baseline_summary_path() -> Path:
-    return configured_path(PROJECT_ROOT, PHASE11_STRATEGY_SUMMARY_PATH)
+    return configured_path(PROJECT_ROOT, EVALUATION_STRATEGY_SUMMARY_PATH)
 
 
 def _validation_output_path() -> Path:
-    return configured_path(PROJECT_ROOT, PHASE13_VALIDATION_SUMMARY_PATH)
+    return configured_path(PROJECT_ROOT, VALIDATION_SUMMARY_PATH)
 
 
 def _managed_artifact_paths() -> list[Path]:
     paths = [
-        configured_path(PROJECT_ROOT, PHASE11_STRATEGY_METRICS_PATH),
-        configured_path(PROJECT_ROOT, PHASE11_STRATEGY_SUMMARY_PATH),
-        configured_path(PROJECT_ROOT, PHASE11_STATISTICAL_TESTS_PATH),
+        configured_path(PROJECT_ROOT, EVALUATION_STRATEGY_METRICS_PATH),
+        configured_path(PROJECT_ROOT, EVALUATION_STRATEGY_SUMMARY_PATH),
+        configured_path(PROJECT_ROOT, EVALUATION_STATISTICAL_TESTS_PATH),
     ]
-    for strategy_name in PHASE7_STRATEGIES:
+    for strategy_name in SIMULATION_STRATEGIES:
         paths.append(configured_path_from_map(PROJECT_ROOT, SIMULATION_CANDIDATE_PATHS, strategy_name))
         paths.append(configured_path_from_map(PROJECT_ROOT, SIMULATION_RESULTS_PATHS, strategy_name))
     return paths
 
 
 @contextmanager
-def _preserve_phase_artifacts(paths: list[Path]) -> Iterator[None]:
+def _preserve_managed_artifacts(paths: list[Path]) -> Iterator[None]:
     with tempfile.TemporaryDirectory() as temp_dir_name:
         temp_dir = Path(temp_dir_name)
         snapshot_records: list[tuple[Path, bool, Path]] = []
@@ -86,25 +86,25 @@ def _temporary_hybrid_override(parameter_name: str, parameter_value: float) -> I
         setattr(hybrid_pricing, parameter_name, original_value)
 
 
-def _load_phase11_summary(summary_path: Path) -> dict[str, dict[str, float]]:
+def _load_evaluation_summary(summary_path: Path) -> dict[str, dict[str, float]]:
     if not summary_path.exists():
-        raise FileNotFoundError(f"Phase 13 baseline summary not found: {summary_path}")
+        raise FileNotFoundError(f"Validation baseline summary not found: {summary_path}")
 
     summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
-    validate_phase11_summary(summary_payload)
+    validate_evaluation_summary(summary_payload)
     return summary_payload
 
 
 def _run_all_simulations_and_evaluation() -> dict[str, dict[str, float]]:
-    for strategy_name in PHASE7_STRATEGIES:
-        logger.info("Phase 13 re-executing Phase 7 for strategy: %s", strategy_name)
-        run_phase7(strategy_name=strategy_name)
+    for strategy_name in SIMULATION_STRATEGIES:
+        logger.info("Validation re-executing Simulation for strategy: %s", strategy_name)
+        run_simulation(strategy_name=strategy_name)
 
-    logger.info("Phase 13 re-executing Phase 11 metrics.")
+    logger.info("Validation re-executing Evaluation metrics.")
     _, summary = compute_metrics()
-    logger.info("Phase 13 re-executing Phase 11 statistical tests.")
+    logger.info("Validation re-executing Evaluation statistical tests.")
     run_tests()
-    validate_phase11_summary(summary)
+    validate_evaluation_summary(summary)
     return summary
 
 
@@ -128,7 +128,7 @@ def _run_parameter_variation(
     parameter_value: float,
 ) -> dict[str, object]:
     logger.info(
-        "Phase 13 parameter variation started: %s | %s=%s",
+        "Validation parameter variation started: %s | %s=%s",
         variation_name,
         parameter_name,
         parameter_value,
@@ -163,14 +163,14 @@ def _run_parameter_variation(
             }
         )
         logger.info(
-            "Phase 13 parameter variation completed: %s | revenue ranking=%s | stability ranking=%s",
+            "Validation parameter variation completed: %s | revenue ranking=%s | stability ranking=%s",
             variation_name,
             revenue_ranking,
             stability_ranking,
         )
     except Exception as exc:
         variation_result["error_message"] = str(exc)
-        logger.exception("Phase 13 parameter variation failed: %s", variation_name)
+        logger.exception("Validation parameter variation failed: %s", variation_name)
 
     return variation_result
 
@@ -178,11 +178,11 @@ def _run_parameter_variation(
 def _run_rerun_consistency_check(
     baseline_summary: dict[str, dict[str, float]],
 ) -> dict[str, object]:
-    logger.info("Phase 13 re-run consistency check started.")
+    logger.info("Validation re-run consistency check started.")
 
     rerun_result: dict[str, object] = {
         "run_succeeded": False,
-        "metric_tolerance": float(PHASE13_RERUN_TOLERANCE),
+        "metric_tolerance": float(VALIDATION_RERUN_TOLERANCE),
         "all_within_tolerance": False,
         "checks": [],
         "error_message": "",
@@ -192,8 +192,8 @@ def _run_rerun_consistency_check(
         regenerated_summary = _run_all_simulations_and_evaluation()
         checks: list[dict[str, object]] = []
 
-        for strategy_name in PHASE7_STRATEGIES:
-            for metric_name in PHASE13_RERUN_METRICS:
+        for strategy_name in SIMULATION_STRATEGIES:
+            for metric_name in VALIDATION_RERUN_METRICS:
                 baseline_value = float(baseline_summary[strategy_name][metric_name])
                 rerun_value = float(regenerated_summary[strategy_name][metric_name])
                 absolute_difference = abs(rerun_value - baseline_value)
@@ -204,7 +204,7 @@ def _run_rerun_consistency_check(
                         "baseline_value": baseline_value,
                         "rerun_value": rerun_value,
                         "absolute_difference": float(absolute_difference),
-                        "within_tolerance": absolute_difference < PHASE13_RERUN_TOLERANCE,
+                        "within_tolerance": absolute_difference < VALIDATION_RERUN_TOLERANCE,
                     }
                 )
 
@@ -216,12 +216,12 @@ def _run_rerun_consistency_check(
             }
         )
         logger.info(
-            "Phase 13 re-run consistency check completed | all_within_tolerance=%s",
+            "Validation re-run consistency check completed | all_within_tolerance=%s",
             rerun_result["all_within_tolerance"],
         )
     except Exception as exc:
         rerun_result["error_message"] = str(exc)
-        logger.exception("Phase 13 re-run consistency check failed.")
+        logger.exception("Validation re-run consistency check failed.")
 
     return rerun_result
 
@@ -241,18 +241,18 @@ def _overall_passed(
     )
 
 
-def run_phase13() -> dict[str, object]:
-    logger.info("Phase 13 validation started.")
-    baseline_summary = _load_phase11_summary(_baseline_summary_path())
+def run_validation() -> dict[str, object]:
+    logger.info("Validation started.")
+    baseline_summary = _load_evaluation_summary(_baseline_summary_path())
 
-    with _preserve_phase_artifacts(_managed_artifact_paths()):
+    with _preserve_managed_artifacts(_managed_artifact_paths()):
         parameter_variations = [
             _run_parameter_variation(
                 variation_name=str(variation["variation_name"]),
                 parameter_name=str(variation["parameter_name"]),
                 parameter_value=float(variation["parameter_value"]),
             )
-            for variation in PHASE13_PARAMETER_VARIATIONS
+            for variation in VALIDATION_PARAMETER_VARIATIONS
         ]
         rerun_consistency = _run_rerun_consistency_check(baseline_summary)
 
@@ -262,14 +262,14 @@ def run_phase13() -> dict[str, object]:
         "parameter_variations": parameter_variations,
         "rerun_consistency": rerun_consistency,
     }
-    validate_phase13_summary(validation_payload)
+    validate_validation_summary(validation_payload)
 
     output_path = _validation_output_path()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(validation_payload, indent=2), encoding="utf-8")
 
     logger.info(
-        "Phase 13 validation completed successfully. overall_passed=%s | output=%s",
+        "Validation completed successfully. overall_passed=%s | output=%s",
         validation_payload["overall_passed"],
         output_path,
     )

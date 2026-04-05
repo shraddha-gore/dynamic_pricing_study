@@ -46,7 +46,7 @@ Conversion details:
 -   No data cleaning was performed
 -   No transformations were applied during export
 
-The exported CSV represents the unmodified raw dataset used in Phase 1
+The exported CSV represents the unmodified raw dataset used in
 inspection.
 
 ------------------------------------------------------------------------
@@ -61,7 +61,7 @@ This file serves as the immutable raw data input for the experimental
 pipeline.
 
 All data cleaning and preprocessing operations occur only in subsequent
-phases.
+build steps.
 
 ------------------------------------------------------------------------
 
@@ -71,7 +71,7 @@ The raw CSV file used in this study is a direct structural export of the
 2010–⁠2011 worksheet from the original Online Retail II dataset.
 
 No analytical manipulation, filtering, or transformation occurred prior
-to Phase 1 inspection.
+to Inspection.
 
 This ensures:
 

@@ -14,12 +14,12 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 from config import (
     COL_STOCK_CODE,
     FEATURE_TEST_DATA_PATH,
-    PHASE6_FEATURE_COLUMNS,
-    PHASE6_MODEL_ARTIFACT_PATH,
-    PHASE7_CANDIDATE_FROZEN_COLUMNS,
-    PHASE7_GRID_POINTS,
-    PHASE7_RESULT_FROZEN_COLUMNS,
-    PHASE7_STRATEGIES,
+    MODEL_FEATURE_COLUMNS,
+    MODEL_ARTIFACT_PATH,
+    SIMULATION_CANDIDATE_FROZEN_COLUMNS,
+    SIMULATION_GRID_POINTS,
+    SIMULATION_RESULT_FROZEN_COLUMNS,
+    SIMULATION_STRATEGIES,
     PRICE_GRID_PERCENTAGE,
     PROJECT_ROOT,
     SIMULATION_CANDIDATE_PATHS,
@@ -29,7 +29,7 @@ from preprocessing.common import configured_path, configured_path_from_map, ensu
 from strategies.hybrid_pricing import choose_price as choose_hybrid_price
 from strategies.ml_pricing import choose_price as choose_ml_price
 from strategies.rule_based import choose_price as choose_rule_price
-from utils.data_contracts import validate_phase7_candidates, validate_phase7_results
+from utils.data_contracts import validate_simulation_candidates, validate_simulation_results
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ def _test_input_path() -> Path:
 
 
 def _model_input_path() -> Path:
-    return configured_path(PROJECT_ROOT, PHASE6_MODEL_ARTIFACT_PATH)
+    return configured_path(PROJECT_ROOT, MODEL_ARTIFACT_PATH)
 
 
 def _strategy_selectors() -> dict[str, StrategySelector]:
@@ -55,7 +55,7 @@ def _strategy_selectors() -> dict[str, StrategySelector]:
 def _generate_candidate_prices(base_price: float) -> np.ndarray:
     low = base_price * (1.0 - PRICE_GRID_PERCENTAGE)
     high = base_price * (1.0 + PRICE_GRID_PERCENTAGE)
-    return np.linspace(low, high, PHASE7_GRID_POINTS, dtype=float)
+    return np.linspace(low, high, SIMULATION_GRID_POINTS, dtype=float)
 
 
 def _build_candidates_for_row(row: pd.Series, model) -> pd.DataFrame:
@@ -64,11 +64,11 @@ def _build_candidates_for_row(row: pd.Series, model) -> pd.DataFrame:
     feature_rows: list[dict[str, float]] = []
 
     for candidate_price in candidate_prices:
-        feature_row = {feature: float(row[feature]) for feature in PHASE6_FEATURE_COLUMNS}
+        feature_row = {feature: float(row[feature]) for feature in MODEL_FEATURE_COLUMNS}
         feature_row["avg_daily_price"] = float(candidate_price)
         feature_rows.append(feature_row)
 
-    feature_df = pd.DataFrame(feature_rows, columns=PHASE6_FEATURE_COLUMNS)
+    feature_df = pd.DataFrame(feature_rows, columns=MODEL_FEATURE_COLUMNS)
     predicted_demand = np.clip(model.predict(feature_df).astype(float), a_min=0.0, a_max=None)
     predicted_revenue = candidate_prices * predicted_demand
 
@@ -164,7 +164,7 @@ def _build_simulation_outputs(test_df: pd.DataFrame, model, strategy_name: str) 
 
     for _, row in test_df.iterrows():
         candidates_df = _build_candidates_for_row(row, model)
-        validate_phase7_candidates(candidates_df[PHASE7_CANDIDATE_FROZEN_COLUMNS])
+        validate_simulation_candidates(candidates_df[SIMULATION_CANDIDATE_FROZEN_COLUMNS])
 
         base_price = float(row["avg_daily_price"])
         stock_code = str(row[COL_STOCK_CODE])
@@ -188,36 +188,36 @@ def _build_simulation_outputs(test_df: pd.DataFrame, model, strategy_name: str) 
         )
 
     candidates_output = pd.concat(all_candidates, ignore_index=True)
-    candidates_output = candidates_output[PHASE7_CANDIDATE_FROZEN_COLUMNS]
-    results_output = pd.DataFrame(all_results, columns=PHASE7_RESULT_FROZEN_COLUMNS)
+    candidates_output = candidates_output[SIMULATION_CANDIDATE_FROZEN_COLUMNS]
+    results_output = pd.DataFrame(all_results, columns=SIMULATION_RESULT_FROZEN_COLUMNS)
     return candidates_output, results_output
 
 
-def run_phase7(strategy_name: str) -> None:
+def run_simulation(strategy_name: str) -> None:
     test_input_path = _test_input_path()
     model_input_path = _model_input_path()
-    if strategy_name not in PHASE7_STRATEGIES:
-        raise ValueError(f"Unsupported strategy for Phase 7 simulation: {strategy_name}")
+    if strategy_name not in SIMULATION_STRATEGIES:
+        raise ValueError(f"Unsupported strategy for Simulation: {strategy_name}")
 
-    logger.info("Phase 7 simulation started for strategy: %s", strategy_name)
+    logger.info("Simulation started for strategy: %s", strategy_name)
     if not test_input_path.exists():
-        raise FileNotFoundError(f"Phase 7 test dataset not found: {test_input_path}")
+        raise FileNotFoundError(f"Simulation test dataset not found: {test_input_path}")
     if not model_input_path.exists():
-        raise FileNotFoundError(f"Phase 7 model artifact not found: {model_input_path}")
+        raise FileNotFoundError(f"Simulation model artifact not found: {model_input_path}")
 
     test_df = pd.read_parquet(test_input_path)
     ensure_required_columns(
         test_df,
-        ["invoice_day", COL_STOCK_CODE, "avg_daily_price", *PHASE6_FEATURE_COLUMNS],
-        "Phase 7 simulation input",
+        ["invoice_day", COL_STOCK_CODE, "avg_daily_price", *MODEL_FEATURE_COLUMNS],
+        "Simulation input",
     )
     test_df = test_df.sort_values([COL_STOCK_CODE, "invoice_day"], kind="mergesort").reset_index(drop=True)
 
     model = joblib.load(model_input_path)
     candidates_df, results_df = _build_simulation_outputs(test_df, model, strategy_name)
 
-    validate_phase7_candidates(candidates_df)
-    validate_phase7_results(results_df)
+    validate_simulation_candidates(candidates_df)
+    validate_simulation_results(results_df)
 
     candidates_output_path, results_output_path = _simulation_output_paths(strategy_name)
     candidates_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -228,7 +228,7 @@ def run_phase7(strategy_name: str) -> None:
 
     logger.info(
         (
-            "Phase 7 summary | strategy: %s | test rows: %s | candidate rows: %s | "
+            "Simulation summary | strategy: %s | test rows: %s | candidate rows: %s | "
             "result rows: %s | candidate output: %s | result output: %s"
         ),
         strategy_name,
@@ -238,8 +238,8 @@ def run_phase7(strategy_name: str) -> None:
         candidates_output_path,
         results_output_path,
     )
-    logger.info("Phase 7 simulation completed successfully for strategy: %s", strategy_name)
+    logger.info("Simulation completed successfully for strategy: %s", strategy_name)
 
 
 if __name__ == "__main__":
-    raise SystemExit("Phase 7 requires an explicit strategy. Use main.py --simulate {rule|ml|hybrid}.")
+    raise SystemExit("Simulation requires an explicit strategy. Use main.py --simulate {rule|ml|hybrid}.")

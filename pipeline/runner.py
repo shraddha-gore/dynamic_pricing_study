@@ -1,45 +1,89 @@
 from collections.abc import Callable
 
-from evaluation.validation import run_phase13
-from models.demand_model import run_phase6
-from preprocessing.aggregate_daily import run_phase4
-from preprocessing.clean_data import run_phase2
-from preprocessing.feature_engineering import run_phase5
-from preprocessing.raw_inspection import run_phase1
-from preprocessing.select_products import run_phase3
+from config import SIMULATION_STRATEGIES
+from evaluation.validation import run_validation
+from models.demand_model import run_demand_model_training
+from pipeline.execution import (
+    AGGREGATE_DAILY_UNIT,
+    BUILD_GROUP,
+    CLEAN_UNIT,
+    EVALUATE_COMMAND,
+    FEATURE_ENGINEERING_UNIT,
+    INSPECT_UNIT,
+    SELECT_PRODUCTS_UNIT,
+    TRAIN_MODEL_UNIT,
+    VALIDATE_COMMAND,
+    group_units,
+)
+from preprocessing.aggregate_daily import run_aggregate_daily
+from preprocessing.clean_data import run_clean_data
+from preprocessing.feature_engineering import run_feature_engineering
+from preprocessing.raw_inspection import run_raw_inspection
+from preprocessing.select_products import run_select_products
 
 
-def _phase_registry() -> tuple[tuple[int, Callable[[], None]], ...]:
+def run_evaluation() -> None:
+    from evaluation.metrics import compute_metrics
+    from evaluation.statistical_tests import run_tests
+
+    compute_metrics()
+    run_tests()
+
+
+def run_simulation(strategy_name: str) -> None:
+    from simulation.simulator import run_simulation
+
+    run_simulation(strategy_name=strategy_name)
+
+
+def run_all_simulations() -> None:
+    for strategy_name in SIMULATION_STRATEGIES:
+        try:
+            run_simulation(strategy_name=strategy_name)
+        except Exception as exc:
+            raise RuntimeError(f"Simulation failed for strategy {strategy_name}.") from exc
+
+
+def _unit_registry() -> tuple[tuple[str, Callable[[], None]], ...]:
     return (
-        (1, run_phase1),
-        (2, run_phase2),
-        (3, run_phase3),
-        (4, run_phase4),
-        (5, run_phase5),
-        (6, run_phase6),
-        (13, run_phase13),
+        (INSPECT_UNIT, run_raw_inspection),
+        (CLEAN_UNIT, run_clean_data),
+        (SELECT_PRODUCTS_UNIT, run_select_products),
+        (AGGREGATE_DAILY_UNIT, run_aggregate_daily),
+        (FEATURE_ENGINEERING_UNIT, run_feature_engineering),
+        (TRAIN_MODEL_UNIT, run_demand_model_training),
+        (EVALUATE_COMMAND, run_evaluation),
+        (VALIDATE_COMMAND, run_validation),
     )
 
 
-def _phase_lookup() -> dict[int, Callable[[], None]]:
-    return dict(_phase_registry())
+def _unit_lookup() -> dict[str, Callable[[], None]]:
+    return dict(_unit_registry())
 
 
-def run_phase(phase: int) -> None:
-    phase_lookup = _phase_lookup()
-    if phase not in phase_lookup:
-        raise ValueError(f"Unsupported phase: {phase}")
-    phase_lookup[phase]()
+def run_unit(unit_name: str) -> None:
+    unit_lookup = _unit_lookup()
+    if unit_name not in unit_lookup:
+        raise ValueError(f"Unsupported execution unit: {unit_name}")
+    unit_lookup[unit_name]()
 
 
-def available_phases() -> list[int]:
-    return [phase_number for phase_number, _ in _phase_registry()]
+def available_units() -> list[str]:
+    return [unit_name for unit_name, _ in _unit_registry()]
 
 
-def workflow_phases() -> list[int]:
-    return [1, 2, 3, 4, 5, 6]
+def run_group(group_name: str) -> None:
+    for unit_name in group_units(group_name):
+        run_unit(unit_name)
 
 
-def run_workflow() -> None:
-    for phase in workflow_phases():
-        run_phase(phase)
+def available_groups() -> list[str]:
+    return [BUILD_GROUP]
+
+
+def build_units() -> tuple[str, ...]:
+    return group_units(BUILD_GROUP)
+
+
+def run_build() -> None:
+    run_group(BUILD_GROUP)
