@@ -1,1260 +1,2328 @@
-# Master Implementation Roadmap
+# Comprehensive Implementation Notes
 
-**Project:** Dynamic Pricing Comparative Study  
-**Dataset:** Online Retail II (2010-2011 only, CSV version)
+This document is a code-faithful, dissertation-oriented description of the current implementation in this repository. It is intentionally exhaustive. The aim is to capture not only the methodological flow, but also the concrete execution logic, frozen parameters, artifact schemas, validation rules, and current verified outputs that exist in the codebase and generated artifacts.
 
-## Project Overview
+The description below reflects the implementation present on the current branch and the frozen outputs currently stored under `data/processed/`, `results/`, and `logs/`.
 
-This project implements and comparatively evaluates three pricing strategies within a retail SME context:
-- Rule-Based Pricing Strategy
-- Machine Learning Pricing Strategy
-- Hybrid Pricing Strategy
+## 1. Study Objective and Implemented Scope
 
-### Evaluation Dimensions
+The project implements an offline comparative dynamic pricing study for a retail SME context. Three pricing strategies are implemented:
+
+- Rule-based pricing
+- Machine learning pricing
+- Hybrid pricing
+
+The comparison is deliberately scoped around two outcome dimensions:
+
 - Revenue performance
 - Pricing stability
 
-### Layered Architecture
-Data -> Inspection -> Cleaning -> Product Selection -> Aggregation -> Feature Engineering -> Demand Model -> Pricing Strategies -> Simulation -> Evaluation -> Dashboard -> Validation and Reproducibility
+The implementation is not a live pricing deployment system and is not a multi-model forecasting benchmark. Instead, the design fixes one demand model and one shared simulation environment so that strategy comparisons are made under identical demand predictions and identical candidate price sets.
 
-### Scope Constraints
-- Dataset limited to 2010-2011 only
-- No 2009 data
-- Comparison focuses on pricing strategies (not multiple demand model architectures)
+The implemented analytical scope is:
 
-## Data Source
+- one source dataset slice
+- one market
+- five selected products
+- daily product-level observations
+- one frozen global linear regression demand model
+- offline simulation using predicted demand
 
-### Dataset
-- Online Retail II, 2010-2011 worksheet only
+This means the implemented system is best understood as a reproducible experimental framework for comparative pricing analysis rather than a production pricing engine.
 
-### Format
-- Original: Excel (`.xlsx`)
-- Working: CSV
+## 2. Data Source, Provenance, and Scope Boundaries
 
-### Project Location
+### 2.1 Original Data Source
+
+The study uses the Online Retail II dataset. The original source file is an Excel workbook containing two worksheets:
+
+- `2009-2010`
+- `2010-2011`
+
+Only the `2010-2011` worksheet is used in this project.
+
+### 2.2 Raw Working File
+
+The raw file used by the implementation is:
+
 - `data/raw/online_retail_II_2010_2011.csv`
 
-### Temporal Coverage
-- December 2010 to December 2011 (as present in source)
+This CSV is treated as the immutable raw input.
 
-### Data Provenance
-- Column names preserved during export
-- No row removal during export
-- No filtering during export
-- No transformations during export
-- Raw CSV is immutable input
-- Cleaning begins after raw-data inspection
-- Provenance documentation: `docs/data_provenance.md`
+### 2.3 Provenance Rules
 
-## Global Execution Rules
-- Run all build steps inside virtual environment: `source venv/bin/activate`
-- Define global constants in `config.py`
-- No hardcoded artifact paths or shared cross-step contract values outside `config.py`
-- Train demand model once (Model training)
-- Simulation uses predicted demand only
-- Preferred grouped build command: `python main.py --build`
-- Simulation command: `python main.py --simulate {rule|ml|hybrid|all}`
-- Evaluation command: `python main.py --evaluate`
-- Validation command: `python main.py --validate`
-- No implicit default command is used; one of `--build`, `--simulate`, `--evaluate`, or `--validate` must be provided
-- Dashboard runs separately from the CLI workflow: `streamlit run dashboard/app.py`
-- Internal runtime orchestration uses named domains (`build`, `simulate`, `evaluate`, `validate`, `dashboard`)
-- CLI mode precedence follows the executable branch order in `main.py`: `--evaluate` -> `--simulate` -> `--validate` -> `--build`
+The implemented provenance assumptions are that the Excel-to-CSV conversion:
 
-## Implementation Best Practices
+- preserved the original worksheet column names
+- did not remove rows
+- did not apply filtering
+- did not perform cleaning
+- did not apply analytical transformations
 
-### Machine-Readable Handoffs First
-- Any step consumed by another step must write a machine-readable artifact (`parquet`/`csv`/`json`)
-- Markdown/docs are for human reporting only and must not be used as downstream inputs
-- `docs/` is for stable human-readable documentation that is not regenerated by pipeline runs (for example provenance, methodology, and frozen narrative notes)
-- Generated artifacts and run outputs (reports, metrics, simulation results) must be written under `results/`
-- Future steps must reuse frozen machine-readable artifacts and shared utility loaders/validators where available instead of recreating equivalent loading or contract logic
+This is important because the implementation separates raw data lineage from analytical preprocessing.
 
-### Results Folder Convention
-- Store generated artifacts under typed `results/` subfolders (for example `results/reports/`, `results/metrics/`, `results/simulation/`, `results/validation/`)
-- Prefer stable file names controlled by `config.py` constants; avoid ad-hoc output file names in step modules
+### 2.4 Scope Restrictions Implemented in Code
 
-### Output Data Contracts
-- Each step must validate required columns, null constraints, and core sanity checks before success
-- For frozen step outputs, validate exact schema (column names and order), not only required-column presence
-- Fail fast on contract violations
+The current code enforces the following scope restrictions:
 
-### Schema Freezing Rule (Mandatory)
-- Any step that outputs data consumed downstream must define domain-scoped frozen schema constants in `config.py`
-- Any step that defines model-input features must additionally freeze the feature list in `config.py`
-- `utils/data_contracts.py` must enforce exact-column validation before step completion
-- Any schema change is controlled and must update `config.py`, validators, and `implementation.md` together
+- Only the 2010-2011 worksheet export is used
+- No 2009 data is used
+- Only United Kingdom transactions are retained after cleaning
+- Only five products are carried forward into modeling and simulation
+- Aggregation is performed at daily product level
+- The demand model is fixed to a single `LinearRegression` implementation
 
-### Single Source of Truth
-- All paths, thresholds, feature names, and strategy parameters must be centralized in `config.py`
-- No hardcoded constants inside step modules
-- Step modules should resolve runtime paths from `config.py` rather than keep module-level path constants
+These restrictions are reflected in `config.py`, the preprocessing steps, and the downstream validators.
 
-### Global Schema Naming Convention
-- All processed/intermediate dataset columns must use `snake_case`
-- Raw source headers may retain original naming, but must be normalized to canonical `snake_case` at ingestion (Cleaning)
+## 3. Environment and Dependency Stack
 
-### Step-Local Concise Logging
-- Log only key summaries (row counts, key filters, date ranges, output path)
-- Detailed tables or diagnostics should be `DEBUG` level
+### 3.1 Runtime Assumptions
 
-### Deterministic Behavior
-- Use stable sorting before top-k selections
-- Avoid implicit randomness; if needed, fix seeds explicitly
-- Preserve chronological processing for time-dependent steps
+The repository assumes a local Python virtual environment named `venv`. The command pattern used by the implementation is:
 
-### Reproducibility Checks
-- After each step run, verify output existence and schema validity
-- Step reruns should be idempotent for identical inputs/config
+```bash
+source venv/bin/activate
+```
 
-### Documentation Sync Rule
-- Any logic or handoff change must update the relevant step section in `implementation.md`
-- Keep outputs, frozen results, and executable coverage notes aligned with code
-- Every completed step must include: `Status`, `Implemented Scope`, `Frozen Results`, `Handoff Contract`, and latest verified run summary
+The current workspace also shows that the system `python` command is not available globally, while `venv/bin/python` is available. Practically, the implementation should therefore be run inside the virtual environment.
 
-### Refactor Safety Rule
-- Internal refactors must preserve frozen outputs, schemas, handoff contracts, and verified summary values unless the affected step is intentionally re-run and re-frozen
+### 3.2 Primary Libraries
 
-### Verification Command Convention
-- Verify changes with the smallest relevant executable command whenever possible (for example `python main.py --simulate rule` or `python main.py --evaluate`) before relying on broader workflow runs
+The core implementation stack is:
 
-## Global Configuration Requirements
+- `pandas==2.3.3` for tabular processing
+- `numpy==2.4.2` for numeric operations
+- `pyarrow==23.0.1` for parquet I/O
+- `scikit-learn==1.8.0` for the linear regression model
+- `scipy==1.17.1` for paired t-tests and Wilcoxon tests
+- `joblib==1.5.3` for model serialization
+- `streamlit==1.54.0` for the dashboard
+- `altair==6.0.0` for dashboard charts
 
-Centralize in `config.py`:
-- Project root: `PROJECT_ROOT`
-- Paths: `RAW_DATA_PATH`, `PROCESSED_DATA_PATH`, `RESULTS_PATH`, `REPORTS_PATH`, `SIMULATION_OUTPUT_PATH`, `LOGS_PATH`
-- Raw input file: `RAW_DATA_FILE`
-- Raw source columns: `RAW_COL_INVOICE`, `RAW_COL_STOCK_CODE`, `RAW_COL_DESCRIPTION`, `RAW_COL_QUANTITY`, `RAW_COL_PRICE`, `RAW_COL_INVOICE_DATE`, `RAW_COL_CUSTOMER_ID`, `RAW_COL_COUNTRY`
-- Canonical columns (`snake_case`): `COL_INVOICE`, `COL_STOCK_CODE`, `COL_DESCRIPTION`, `COL_QUANTITY`, `COL_PRICE`, `COL_INVOICE_DATE`, `COL_CUSTOMER_ID`, `COL_COUNTRY`
-- Raw-to-canonical mapping: `RAW_TO_CANONICAL_COLUMNS`
-- Output paths: `CLEAN_DATA_PATH`, `SELECTED_PRODUCTS_PATH`, `DAILY_AGG_DATA_PATH`, `FEATURE_TRAIN_DATA_PATH`, `FEATURE_TEST_DATA_PATH`, `MODEL_ARTIFACT_PATH`, `MODEL_METRICS_PATH`, `EVALUATION_STRATEGY_METRICS_PATH`, `EVALUATION_STRATEGY_SUMMARY_PATH`, `EVALUATION_STATISTICAL_TESTS_PATH`, `VALIDATION_SUMMARY_PATH`
-- Report/log paths and files: `RAW_INSPECTION_REPORT_FILE`, `RAW_INSPECTION_LOG_FILE`, `CLEANING_LOG_FILE`, `PRODUCT_SELECTION_REPORT_FILE`, `PRODUCT_SELECTION_LOG_FILE`, `DAILY_AGGREGATION_LOG_FILE`, `FEATURE_ENGINEERING_LOG_FILE`, `MODEL_TRAINING_LOG_FILE`, `SIMULATION_LOG_FILE`, `EVALUATION_LOG_FILE`, `DASHBOARD_LOG_FILE`, `VALIDATION_LOG_FILE`, `EXPERIMENT_LOG_FILE`
-- Frozen output schemas: `CLEANING_FROZEN_COLUMNS`, `PRODUCT_SELECTION_FROZEN_COLUMNS`, `DAILY_AGGREGATION_FROZEN_COLUMNS`, `FEATURE_DATA_FROZEN_COLUMNS`
-- Frozen model feature schema: `MODEL_FEATURE_COLUMNS`
-- Feature engineering calendar schema helpers: `FEATURE_WEEKDAY_COLUMNS`, `FEATURE_MONTH_COLUMNS`
-- Model schema params: `MODEL_TARGET_COLUMN`, `MODEL_TYPE`
-- Future steps must follow the same freeze pattern before being marked `Completed`
-- Experimental params: `TRAIN_SPLIT_RATIO`, `PRICE_GRID_PERCENTAGE`, `MAX_DAILY_CHANGE`, `HYBRID_SMOOTHING_ALPHA`, `RULE_PRICE_INCREASE`, `RULE_PRICE_DECREASE`
-- Inspection params: `RAW_INSPECTION_PERCENTILES`
-- Cleaning params: `TARGET_COUNTRY`, `INVOICE_CANCELLATION_PREFIX`, `PRICE_OUTLIER_THRESHOLD`, `PRICE_OUTLIER_REVIEW_TOP_N`, `EXCLUDED_STOCK_CODES`, `CLEANING_STRING_COLUMNS`, `CLEANING_PRICE_DESCRIBE_PERCENTILES`, `CLEANING_RAW_REQUIRED_COLUMNS`
-- Product selection params: `MIN_ACTIVE_DAYS`, `SELECTED_PRODUCT_COUNT`, `MIN_PRICE_STD`
-- Simulation params: `SIMULATION_GRID_POINTS`, `SIMULATION_STRATEGIES`
-- Simulation paths: `SIMULATION_CANDIDATE_PATHS`, `SIMULATION_RESULTS_PATHS`
-- Simulation frozen schemas: `SIMULATION_CANDIDATE_FROZEN_COLUMNS`, `SIMULATION_RESULT_FROZEN_COLUMNS`
-- Evaluation constants: `EVALUATION_METRIC_COLUMNS`, `EVALUATION_PAIRING_KEYS`, `EVALUATION_COMPARISONS`, `EVALUATION_PRODUCT_METRIC_LEVEL`, `EVALUATION_STRATEGY_METRIC_LEVEL`, `EVALUATION_METRIC_LEVELS`, `EVALUATION_SUMMARY_STOCK_CODE`, `EVALUATION_SUMMARY_SCHEMA`, `EVALUATION_TEST_SECTION_METRICS`, `EVALUATION_TEST_NAMES`, `EVALUATION_TESTS_SCHEMA`
-- Dashboard constants: `DASHBOARD_SUMMARY_METRICS`, `DASHBOARD_PRODUCT_METRIC_COLUMNS`, `DASHBOARD_PRODUCT_COMPARISON_METRICS`, `DASHBOARD_STATISTICAL_TEST_LABELS`, `DASHBOARD_TEST_LABELS`, `DASHBOARD_SIGNIFICANCE_THRESHOLD`
-- Validation constants: `VALIDATION_PARAMETER_VARIATIONS`, `VALIDATION_RANKING_CHECKS`, `VALIDATION_RERUN_METRICS`, `VALIDATION_RERUN_TOLERANCE`
+The full pinned environment is stored in `requirements.txt`.
 
-## Foundations - Project Foundations
+## 4. Repository Structure and Module Responsibilities
 
-### Objective
-- Create baseline project architecture and reproducibility controls
+The implementation is organized into functional areas:
 
-### Rationale
-- A stable directory/module layout and centralized configuration are prerequisites for deterministic staged execution
-- Early reproducibility controls reduce rework when later build and analysis steps are added
+- `main.py`
+  CLI entrypoint and top-level command dispatch.
+- `config.py`
+  Central source of paths, constants, schema definitions, strategy parameters, and validation settings.
+- `pipeline/`
+  Execution naming and orchestration.
+- `preprocessing/`
+  Inspection, cleaning, product selection, aggregation, and feature engineering.
+- `models/`
+  Demand model training.
+- `strategies/`
+  Rule-based, ML, and hybrid price-selection logic.
+- `simulation/`
+  Shared simulation engine.
+- `evaluation/`
+  Metric computation, statistical testing, and reproducibility validation.
+- `dashboard/`
+  Streamlit read-only comparison dashboard.
+- `utils/`
+  Logging configuration, data-contract enforcement, and simulation artifact loading.
 
-### Implementation Files
-- N/A (initial scaffolding and structure setup)
+## 5. Execution Model and CLI Behaviour
 
-### Outputs
-- Baseline repository structure
-- Initial pipeline and configuration modules
+### 5.1 Main CLI
 
-### Status
-- Completed
+The executable entrypoint is `main.py`. It defines four explicit command families:
 
-### Implemented Scope
-- Initialize baseline repository folder structure for data, preprocessing, modeling, simulation, evaluation, and documentation
-- Establish centralized project configuration in `config.py` for paths and shared constants
-- Set up pipeline entry points and grouped execution scaffolding for reproducible runs
+- `--build`
+- `--simulate {rule|ml|hybrid|all}`
+- `--evaluate`
+- `--validate`
 
-### Frozen Results
-- Reproducible project skeleton established for staged execution
+If no command is provided, the parser fails with:
 
-### Latest Verified Run Summary
-- Project structure, centralized configuration, and explicit command entrypoints are in place on the current `main` branch
-- Build execution is intentionally scoped to the explicit `python main.py --build` command
+- `Specify one of --build, --simulate, --evaluate, or --validate.`
 
-### Handoff Contract
-- Provides the repository structure, configuration conventions, and execution scaffolding required by all downstream steps
+There is no implicit default mode.
 
-## Inspection - Raw Data Inspection
+### 5.2 Command Precedence in `main.py`
 
-### Objective
-- Understand dataset quality and distribution before transformation
+The dispatch order in `main.py` is:
 
-### Rationale
-- Inspection defines evidence-based cleaning rules and avoids assumptions that could bias downstream demand modeling
-- A frozen inspection report creates an auditable basis for Cleaning decisions
+1. `--evaluate`
+2. `--simulate` for one strategy
+3. `--simulate all`
+4. `--validate`
+5. `--build`
 
-### Implementation Files
+This precedence matters only if conflicting flags were ever passed simultaneously. Under normal usage, commands are expected to be explicit and non-conflicting.
+
+### 5.3 Pipeline Naming in `pipeline/execution.py`
+
+The current execution names are:
+
+- Build group: `build`
+- Units: `inspect`, `clean`, `select_products`, `aggregate_daily`, `feature_engineering`, `train_model`
+- Commands: `simulate`, `evaluate`, `validate`, `dashboard`
+
+The build group currently contains exactly these six units in order:
+
+1. `inspect`
+2. `clean`
+3. `select_products`
+4. `aggregate_daily`
+5. `feature_engineering`
+6. `train_model`
+
+### 5.4 Runner Behaviour in `pipeline/runner.py`
+
+`pipeline/runner.py` provides:
+
+- `run_build()` to execute the build group
+- `run_simulation(strategy_name)` to run one strategy
+- `run_all_simulations()` to iterate over `("rule", "ml", "hybrid")`
+- `run_evaluation()` to run metric computation then statistical tests
+- `run_unit(unit_name)` to dispatch individual units
+
+Important execution details:
+
+- `run_all_simulations()` wraps strategy failures and reports which strategy failed.
+- `run_evaluation()` imports evaluation modules lazily inside the function.
+- validation is executed via `run_unit(VALIDATE_COMMAND)` from the main CLI.
+
+### 5.5 Canonical Command Set
+
+The intended command set is:
+
+```bash
+python main.py --build
+python main.py --simulate rule
+python main.py --simulate ml
+python main.py --simulate hybrid
+python main.py --simulate all
+python main.py --evaluate
+python main.py --validate
+streamlit run dashboard/app.py
+```
+
+### 5.6 Recommended End-to-End Order
+
+The practical end-to-end execution order is:
+
+1. `python main.py --build`
+2. `python main.py --simulate all`
+3. `python main.py --evaluate`
+4. `python main.py --validate`
+
+This sequence builds the processed data and model, produces all simulation outputs, computes evaluation artifacts, and then verifies robustness and reproducibility.
+
+## 6. Configuration Architecture in `config.py`
+
+`config.py` is the single source of truth for all shared implementation settings. The codebase is intentionally written so that step modules resolve paths and parameters from `config.py` rather than redefining them locally.
+
+### 6.1 Path Configuration
+
+Global project and path constants:
+
+- `PROJECT_ROOT = "."`
+- `RAW_DATA_PATH = "data/raw/"`
+- `RAW_DATA_FILE = "online_retail_II_2010_2011.csv"`
+- `PROCESSED_DATA_PATH = "data/processed/"`
+- `RESULTS_PATH = "results/"`
+- `LOGS_PATH = "logs/"`
+- `REPORTS_PATH = "results/reports/"`
+
+### 6.2 Processed Data Artifact Paths
+
+- `CLEAN_DATA_PATH = "data/processed/clean_transactions.parquet"`
+- `SELECTED_PRODUCTS_PATH = "data/processed/selected_products.parquet"`
+- `DAILY_AGG_DATA_PATH = "data/processed/daily_product_data.parquet"`
+- `FEATURE_TRAIN_DATA_PATH = "data/processed/feature_train_data.parquet"`
+- `FEATURE_TEST_DATA_PATH = "data/processed/feature_test_data.parquet"`
+
+### 6.3 Model Artifact Paths
+
+- `MODEL_ARTIFACT_PATH = "models/artifacts/demand_model.joblib"`
+- `MODEL_METRICS_PATH = "results/metrics/demand_model_metrics.json"`
+
+### 6.4 Evaluation Artifact Paths
+
+- `EVALUATION_STRATEGY_METRICS_PATH = "results/metrics/strategy_metrics.parquet"`
+- `EVALUATION_STRATEGY_SUMMARY_PATH = "results/metrics/strategy_summary.json"`
+- `EVALUATION_STATISTICAL_TESTS_PATH = "results/metrics/statistical_tests.json"`
+
+### 6.5 Validation Path
+
+- `VALIDATION_SUMMARY_PATH = "results/validation/validation_summary.json"`
+
+### 6.6 Log File Names
+
+- `RAW_INSPECTION_LOG_FILE = "inspection.log"`
+- `CLEANING_LOG_FILE = "cleaning.log"`
+- `PRODUCT_SELECTION_LOG_FILE = "product_selection.log"`
+- `DAILY_AGGREGATION_LOG_FILE = "aggregation.log"`
+- `FEATURE_ENGINEERING_LOG_FILE = "feature_engineering.log"`
+- `MODEL_TRAINING_LOG_FILE = "model_training.log"`
+- `SIMULATION_LOG_FILE = "simulation.log"`
+- `EVALUATION_LOG_FILE = "evaluation.log"`
+- `DASHBOARD_LOG_FILE = "dashboard.log"`
+- `VALIDATION_LOG_FILE = "validation.log"`
+- `EXPERIMENT_LOG_FILE = "experiment.log"`
+
+### 6.7 Raw Source Column Names
+
+The raw CSV headers expected by the implementation are:
+
+- `Invoice`
+- `StockCode`
+- `Description`
+- `Quantity`
+- `InvoiceDate`
+- `Price`
+- `Customer ID`
+- `Country`
+
+### 6.8 Canonical Processed Column Names
+
+The canonical processed schema uses:
+
+- `invoice`
+- `stock_code`
+- `description`
+- `quantity`
+- `invoice_date`
+- `price`
+- `customer_id`
+- `country`
+
+The raw-to-canonical mapping is:
+
+| Raw column | Canonical column |
+| --- | --- |
+| `Invoice` | `invoice` |
+| `StockCode` | `stock_code` |
+| `Description` | `description` |
+| `Quantity` | `quantity` |
+| `InvoiceDate` | `invoice_date` |
+| `Price` | `price` |
+| `Customer ID` | `customer_id` |
+| `Country` | `country` |
+
+### 6.9 Cross-Domain Experimental Parameters
+
+The major shared experimental constants are:
+
+- `TRAIN_SPLIT_RATIO = 0.8`
+- `PRICE_GRID_PERCENTAGE = 0.05`
+- `SIMULATION_GRID_POINTS = 5`
+- `RULE_PRICE_INCREASE = 0.02`
+- `RULE_PRICE_DECREASE = 0.02`
+- `MAX_DAILY_CHANGE = 0.03`
+- `HYBRID_SMOOTHING_ALPHA = 0.3`
+
+### 6.10 Cleaning Parameters
+
+- `TARGET_COUNTRY = "United Kingdom"`
+- `PRICE_OUTLIER_THRESHOLD = 1000.0`
+- `PRICE_OUTLIER_REVIEW_TOP_N = 20`
+- `INVOICE_CANCELLATION_PREFIX = "C"`
+- `EXCLUDED_STOCK_CODES = ["DOS", "DOT", "POST", "M", "AMAZONFEE", "B"]`
+- `CLEANING_PRICE_DESCRIBE_PERCENTILES = [0.5, 0.9, 0.95, 0.99, 0.995, 0.999]`
+
+### 6.11 Product Selection Parameters
+
+- `MIN_ACTIVE_DAYS = 150`
+- `SELECTED_PRODUCT_COUNT = 5`
+- `MIN_PRICE_STD = 0.0`
+
+### 6.12 Model Parameters
+
+- `MODEL_TYPE = "LinearRegression"`
+- `MODEL_TARGET_COLUMN = "daily_units"`
+
+### 6.13 Simulation Strategy Names
+
+- `SIMULATION_STRATEGIES = ("rule", "ml", "hybrid")`
+
+### 6.14 Evaluation Constants
+
+The implementation freezes:
+
+- the evaluation metric columns
+- the pairing keys
+- the supported pairwise comparisons
+- the metric levels
+- the summary row stock-code sentinel
+- the JSON schema of summary metrics and statistical tests
+
+The current comparisons are:
+
+- `hybrid_vs_ml`
+- `hybrid_vs_rule`
+
+The current pairing keys are:
+
+- `stock_code`
+- `invoice_day`
+
+### 6.15 Dashboard Constants
+
+The dashboard uses:
+
+- the six summary metrics
+- product-level metric columns
+- a significance threshold of `0.05`
+- label maps for test names and statistical sections
+
+### 6.16 Validation Constants
+
+Current validation settings are:
+
+- `VALIDATION_PARAMETER_VARIATIONS`
+  - `MAX_DAILY_CHANGE = 0.01`
+  - `HYBRID_SMOOTHING_ALPHA = 0.7`
+- `VALIDATION_RANKING_CHECKS`
+  - `ml_highest_total_revenue`
+  - `hybrid_lowest_mean_absolute_change`
+- `VALIDATION_RERUN_METRICS`
+  - `total_revenue`
+  - `mean_absolute_change`
+- `VALIDATION_RERUN_TOLERANCE = 1e-6`
+
+## 7. Shared Helper Utilities
+
+### 7.1 Path Resolution in `preprocessing/common.py`
+
+The project uses shared helper functions to keep file resolution consistent:
+
+- `configured_root(project_root)`
+- `configured_path(project_root, relative_path)`
+- `configured_path_from_map(project_root, path_map, key)`
+
+These ensure all step modules resolve paths relative to `PROJECT_ROOT`.
+
+### 7.2 Required-Column Checking
+
+`ensure_required_columns(df, required_columns, context)` checks that all required columns are present. If not, it raises a `ValueError` naming the missing columns and the failing context.
+
+This function is reused across preprocessing, modeling, simulation, and evaluation.
+
+## 8. Logging Architecture
+
+### 8.1 Logging Entry Behaviour
+
+`utils/logging_config.py` defines `configure_logging()`. When invoked:
+
+- the root logger is set to `INFO`
+- any existing handlers are cleared
+- `logs/` is created if missing
+- an `experiment.log` handler is always added
+- target-specific handlers are added for the selected command or unit
+
+### 8.2 Log Formats
+
+Two formats are used:
+
+- `experiment.log`
+  - `%(asctime)s - %(levelname)s - %(message)s`
+- target log files
+  - `%(asctime)s | %(levelname)s | %(message)s`
+
+### 8.3 Prefix-Based Filtering
+
+Target-specific logs use `LoggerPrefixFilter`, which filters records by logger name prefixes. This keeps, for example, `logs/simulation.log` limited to logs emitted from `simulation.simulator`.
+
+### 8.4 Logging Target Map
+
+Current logging targets are:
+
+- inspection -> `preprocessing.raw_inspection`
+- cleaning -> `preprocessing.clean_data`
+- product selection -> `preprocessing.select_products`
+- aggregation -> `preprocessing.aggregate_daily`
+- feature engineering -> `preprocessing.feature_engineering`
+- model training -> `models.demand_model`
+- simulation -> `simulation.simulator`
+- evaluation -> `evaluation.metrics`, `evaluation.statistical_tests`, `utils.simulation_artifacts`
+- dashboard -> `dashboard.app`
+- validation -> `evaluation.validation`, `simulation.simulator`, `evaluation.metrics`, `evaluation.statistical_tests`, `utils.simulation_artifacts`
+
+This logging arrangement is useful for dissertation auditability because each stage leaves a stage-specific execution trail in addition to the global `experiment.log`.
+
+## 9. Data Inspection Implementation
+
+### 9.1 Module and Outputs
+
+Inspection is implemented in:
+
 - `preprocessing/raw_inspection.py`
 
-### Outputs
+Outputs:
+
 - `results/reports/raw_inspection_report.json`
 - `logs/inspection.log`
 
-### Status
-- Completed
+### 9.2 Inspection Responsibilities
 
-### Implemented Scope
-- Load raw CSV from immutable source path and inspect dataset shape, dtypes, and null profile
-- Quantify data quality signals (cancellations, negative/zero quantity, negative/zero price)
-- Profile country distribution, revenue-by-country, and temporal coverage
-- Persist an auditable machine-readable inspection report for downstream cleaning decisions
+The inspection step:
 
-### Frozen Results
-- Rows: 541,910
-- Columns: 8
-- Cancellations: 9,288
-- Negative quantities: 10,624
-- Negative prices: 2
-- Zero prices: 2,515
-- ~99% of prices <= GBP 18
-- Frozen decisions: UK only, remove cancelled invoices, remove negative quantities, remove zero/negative prices
+- loads the raw CSV
+- records dataset shape
+- records raw dtypes
+- computes null counts and percentages
+- counts cancellation rows using invoices starting with `C`
+- computes descriptive statistics for `Quantity`
+- computes descriptive statistics for `Price`
+- counts negative and zero quantities
+- counts negative and zero prices
+- records country distribution
+- computes revenue by country using `Quantity * Price`
+- attempts datetime parsing for `InvoiceDate`
+- stores downstream frozen cleaning decisions
 
-### Latest Verified Run Summary
-- Report artifact: `results/reports/raw_inspection_report.json`
-- Logged outputs: `logs/inspection.log`
-- Inspection remains the frozen evidence source for Cleaning rules
+### 9.3 Inspection Report Payload Structure
 
-### Handoff Contract
-- Cleaning rules must remain justified by the frozen Inspection evidence
-- Inspection produces descriptive evidence only and must not be used as a machine-readable downstream input beyond the frozen report artifact
+The report payload currently contains:
 
-## Cleaning - Transaction Cleaning
+- `step`
+- `name`
+- `source_file`
+- `dataset_shape`
+- `column_types`
+- `null_summary`
+- `cancellation_summary`
+- `quantity_distribution`
+- `quantity_quality_flags`
+- `price_distribution`
+- `price_quality_flags`
+- `country_distribution_top20`
+- `revenue_by_country_top20`
+- `date_range_validation`
+- `frozen_decisions_for_next_step`
 
-### Objective
-- Produce an analytically valid retail transactional dataset suitable for downstream demand modelling and pricing analysis
+### 9.4 Current Frozen Inspection Findings
 
-### Rationale
-- Cleaning decisions directly shape model validity and pricing conclusions, so rules must prioritize retail realism and analytical integrity
-- A transparent, rule-based cleaning contract prevents hidden preprocessing drift in downstream steps
+From `results/reports/raw_inspection_report.json`, the current raw dataset profile is:
 
-### Implementation Files
+- Rows: `541,910`
+- Columns: `8`
+- Source file: `/home/shraddha/Documents/Projects/dynamic_pricing_study/data/raw/online_retail_II_2010_2011.csv`
+
+Current raw dtypes are:
+
+| Column | Raw dtype |
+| --- | --- |
+| `Invoice` | `object` |
+| `StockCode` | `object` |
+| `Description` | `object` |
+| `Quantity` | `int64` |
+| `InvoiceDate` | `object` |
+| `Price` | `float64` |
+| `Customer ID` | `float64` |
+| `Country` | `object` |
+
+Current null profile includes:
+
+- `Customer ID`: `135,080` nulls (`24.9266%`)
+- `Description`: `1,454` nulls (`0.2683%`)
+- all other raw columns: `0` nulls
+
+Quality flags in the inspection artifact are:
+
+- cancellations: `9,288`
+- negative quantity rows: `10,624`
+- zero quantity rows: `0`
+- negative price rows: `2`
+- zero price rows: `2,515`
+
+Current raw quantity descriptive landmarks:
+
+- minimum quantity: `-80,995`
+- median quantity: `3`
+- 95th percentile quantity: `29`
+- 99th percentile quantity: `100`
+- maximum quantity: `80,995`
+
+Current raw price descriptive landmarks:
+
+- minimum price: `-11,062.06`
+- median price: `2.08`
+- 95th percentile price: `9.95`
+- 99th percentile price: `18.0`
+- maximum price: `38,970.0`
+
+Current parsed raw date range:
+
+- minimum date: `2010-12-01 08:26:00`
+- maximum date: `2011-12-09 12:50:00`
+
+Current top country by row count:
+
+- `United Kingdom`: `495,478` rows
+
+### 9.5 Inspection Outcome
+
+The current inspection step stores the following frozen downstream decisions:
+
+- Keep UK only
+- Remove cancelled invoices
+- Remove negative quantities
+- Remove zero or negative prices
+- Temporal boundary already fixed at source (2010-2011 only)
+
+Inspection is descriptive only. No downstream module consumes the raw inspection report as a computational input, but it is the evidence base for the cleaning rules.
+
+## 10. Cleaning Implementation
+
+### 10.1 Module and Output
+
+Cleaning is implemented in:
+
 - `preprocessing/clean_data.py`
 
-### Outputs
+Outputs:
+
 - `data/processed/clean_transactions.parquet`
 - `logs/cleaning.log`
 
-### Status
-- Completed
+### 10.2 Raw Column Validation
 
-### Implemented Scope
-- Normalize raw headers to canonical `snake_case` schema
-- Apply deterministic cleaning filters for market scope, cancellations, invalid quantities/prices, and non-product stock codes
-- Review positive price tail and remove economically implausible outliers using configured threshold controls
-- Coerce and validate data types, enforce quality checks, and persist validated cleaned output for downstream steps
+Before any transformation, cleaning validates the presence of these required raw columns:
 
-### Cleaning Principles
-Cleaning must:
-- Remove structurally invalid entries
-- Preserve genuine retail pricing variation
-- Avoid artificial smoothing of volatility
-- Avoid biasing hybrid strategy performance
-- Exclude non-retail service or administrative transaction codes
+- `Invoice`
+- `StockCode`
+- `Description`
+- `Quantity`
+- `InvoiceDate`
+- `Price`
+- `Customer ID`
+- `Country`
 
-### Cleaning Rules
+### 10.3 Canonicalization and String Standardization
 
-#### 1. Normalize Raw Headers to Canonical Schema
-**Procedure:** Map source CSV headers to canonical `snake_case` names at Cleaning entry, then use only canonical names downstream.
+The raw dataframe is renamed using `RAW_TO_CANONICAL_COLUMNS`, producing the canonical processed schema.
 
-**Mapping:**
-- `Invoice -> invoice`
-- `StockCode -> stock_code`
-- `Description -> description`
-- `Quantity -> quantity`
-- `InvoiceDate -> invoice_date`
-- `Price -> price`
-- `Customer ID -> customer_id`
-- `Country -> country`
+String handling then applies:
 
-**Rationale:** Creates a single consistent schema across all processed datasets while preserving raw-source immutability.
+- cast configured string columns to pandas `string`
+- trim surrounding whitespace
+- uppercase `invoice`
+- uppercase `stock_code`
+- collapse repeated whitespace in `description`
+- trim `description` again
 
-#### 2. Restrict to United Kingdom
-**Condition:** `country == TARGET_COUNTRY`
+### 10.4 Type Coercion Logic
 
-**Rationale:** Ensures a single-market demand environment consistent with the SME retail context.
+The cleaning step then coerces:
 
-#### 3. Remove Cancelled Invoices
-**Condition:** `invoice` begins with `INVOICE_CANCELLATION_PREFIX`
+- `quantity` using `pd.to_numeric(errors="coerce")`
+- `price` using `pd.to_numeric(errors="coerce")`
+- `invoice_date` using `pd.to_datetime(errors="coerce", format="mixed")`
+- `customer_id` using `pd.to_numeric(errors="coerce")` and then `Int64`
 
-**Rationale:** Cancelled invoices represent transaction reversals rather than forward pricing decisions.
+Rows with non-numeric quantities, non-numeric prices, or unparseable dates would be dropped. In the current frozen run, no such drops were logged before the filtering stages.
 
-#### 4. Remove Negative Quantities
-**Condition:** `quantity < 0`
+### 10.5 Deterministic Filtering Sequence
 
-**Rationale:** Negative quantities represent returns or corrections and do not represent forward demand.
+The filtering sequence is:
 
-#### 5. Remove Zero or Negative Prices
-**Condition:** `price <= 0`
+1. restrict to `country == "United Kingdom"` after case-normalized comparison
+2. remove invoices starting with `C`
+3. remove rows with `quantity < 0`
+4. remove rows with `price <= 0`
+5. remove rows whose `stock_code` is in `EXCLUDED_STOCK_CODES`
+6. inspect positive-price distribution
+7. remove rows with `price > 1000.0`
+8. run quality checks
+9. run exact-schema validation via `validate_clean_transactions`
 
-**Rationale:** Zero or negative prices represent accounting artefacts or corrections rather than valid retail prices.
+### 10.6 Important Detail About Row Counts
 
-#### 6. Exclude Non-Product Service Codes
-Certain `stock_code` values represent service charges, adjustments, or administrative entries rather than retail products.
+The row counts removed at each cleaning stage are conditional on earlier filters. For example:
 
-Examples include postage charges, manual accounting adjustments, or marketplace fees.
+- raw inspection found `9,288` cancellation rows in the entire raw dataset
+- cleaning removed `7,856` cancelled rows after restricting to United Kingdom first
 
-**Condition:** `stock_code not in EXCLUDED_STOCK_CODES`
+The same applies to negative quantities and non-positive prices. Therefore, inspection counts and cleaning-removal counts are not expected to match exactly.
 
-Configured in `config.py`:
-```python
-EXCLUDED_STOCK_CODES = [
-    "DOS",
-    "DOT",
-    "POST",
-    "M",
-    "AMAZONFEE",
-    "B",
-]
-```
+### 10.7 Current Cleaning Log Summary
 
-**Rationale:**
-- These entries do not represent products customers choose and therefore distort demand modelling and price optimisation experiments
-- Removing them ensures the dataset reflects true retail item demand
+From `logs/cleaning.log`, the current stagewise counts are:
 
-#### 7. Handle Extreme Positive Price Outliers
-Instead of automatic percentile trimming:
+| Cleaning stage | Rows removed | Rows remaining |
+| --- | ---: | ---: |
+| Initial raw rows | 0 | 541,910 |
+| Remove non-UK rows | 46,432 | 495,478 |
+| Remove cancelled invoice rows | 7,856 | 487,622 |
+| Remove negative-quantity rows | 1,336 | 486,286 |
+| Remove non-positive-price rows | 1,163 | 485,123 |
+| Remove non-product service-code rows | 1,041 | 484,082 |
+| Remove price outliers above GBP 1000 | 0 | 484,082 |
 
-**Procedure:**
-- Compute distribution of positive prices
-- Inspect top `PRICE_OUTLIER_REVIEW_TOP_N` highest prices
-- Remove only economically implausible values
+### 10.8 Positive Price Distribution After Earlier Filters
 
-**Definition of economically implausible:** Prices clearly inconsistent with normal retail item pricing.
+The logged positive-price distribution after the earlier cleaning filters is:
 
-**Configured threshold:** `PRICE_OUTLIER_THRESHOLD = 1000.0`
+- minimum: `0.0010`
+- median: `2.1000`
+- 95th percentile: `9.9500`
+- 99th percentile: `16.6300`
+- maximum: `649.5000`
 
-**Rationale:** Inspection of the upper tail showed that extreme prices were dominated by service codes and administrative adjustments rather than retail products.
+The maximum value being below the configured threshold explains why zero rows were removed by the final outlier filter in the current frozen run.
 
-**Rows removed after prior cleaning rules:** `0`
+### 10.9 Quality Checks Performed
 
-#### 8. Standardize and Validate Data Types
-**Procedure:**
-- Trim whitespace on string columns
-- Normalize casing for identifiers (`invoice`, `stock_code`)
-- Collapse repeated internal whitespace in `description`
-- Coerce `quantity` and `price` to numeric and drop non-numeric rows
-- Coerce `invoice_date` to datetime and drop unparseable rows
-- Keep `customer_id` as nullable integer (`Int64`)
+Cleaning enforces:
 
-**Post-clean validation checks:**
-- `country` must equal `TARGET_COUNTRY`
-- `quantity` must be `>= 0`
-- `price` must be `> 0` and `<= PRICE_OUTLIER_THRESHOLD`
-- Required columns must be non-null (except `customer_id`)
+- all remaining `country` values equal `United Kingdom`
+- no remaining negative quantities
+- no remaining non-positive prices
+- no remaining prices above `1000.0`
+- no remaining excluded service stock codes
+- no nulls in required non-null columns
 
-### Frozen Results
-- Country restricted to United Kingdom
-- Cancelled invoices removed
-- Negative quantities removed
-- Non-positive prices removed
-- Non-product service codes removed
-- Economically implausible price outliers removed using `PRICE_OUTLIER_THRESHOLD`
-- Data type validation checks passed
+### 10.10 Cleaned Output Schema
 
-### Latest Verified Run Summary
-- Output dataset: `data/processed/clean_transactions.parquet`
-- Logged outputs: `logs/cleaning.log`
-- Downstream processed schema is the canonical `snake_case` transaction contract
+The exact frozen cleaned output column order is:
 
-### Handoff Contract
-- Downstream steps may assume cleaned data is UK-only, non-cancelled, non-negative quantity, positive price, and excludes service/admin stock codes
-- Schema is normalized to canonical `snake_case` column naming
+1. `invoice`
+2. `stock_code`
+3. `description`
+4. `quantity`
+5. `invoice_date`
+6. `price`
+7. `customer_id`
+8. `country`
 
-## Product selection - Product Universe Selection
+### 10.11 Cleaned Dataset Validation Rules
 
-### Objective
-- Select five stable products for demand modeling and dynamic pricing simulation
+`validate_clean_transactions()` requires:
 
-### Rationale
-- Restricting to a small set of active, price-varying products controls experiment complexity while preserving meaningful demand-price variation
-- Revenue-ranked selection focuses the study on commercially relevant SKUs
+- exact column order matching the frozen schema
+- non-empty dataset
+- all `country` values equal target country
+- no negative quantity
+- no non-positive price
+- no price above the outlier threshold
 
-### Implementation Files
+### 10.12 Current Frozen Cleaned Dataset Facts
+
+The current cleaned dataset has:
+
+- rows: `484,082`
+- columns: `8`
+- unique stock codes: `3,801`
+- minimum invoice timestamp: `2010-12-01 08:26:00`
+- maximum invoice timestamp: `2011-12-09 12:49:00`
+
+## 11. Product Selection Implementation
+
+### 11.1 Module and Outputs
+
+Product selection is implemented in:
+
 - `preprocessing/select_products.py`
 
-### Outputs
-- `results/reports/product_selection_report.json`
+Outputs:
+
 - `data/processed/selected_products.parquet`
+- `results/reports/product_selection_report.json`
 - `logs/product_selection.log`
 
-### Status
-- Completed
+### 11.2 Input Requirements
 
-### Implemented Scope
-- Compute product-level metrics (`revenue`, `price_std`, `active_days`) from cleaned transactions
-- Filter products using activity and price-variation constraints
-- Select top `SELECTED_PRODUCT_COUNT` products by revenue with deterministic ordering
-- Persist selected product list and machine-readable selection report
+The cleaned dataset must contain:
 
-### Frozen Results
-- Selection criteria: `price_std > 0`, `active_days >= 150`, ranked by `revenue`
-- Products analyzed: 3,801
-- Eligible products after filters: 484
-- Frozen selected products:
-  1. `22423` - REGENCY CAKESTAND 3 TIER
-  2. `85123A` - WHITE HANGING HEART T-LIGHT HOLDER
-  3. `47566` - PARTY BUNTING
-  4. `85099B` - JUMBO BAG RED RETROSPOT
-  5. `22086` - PAPER CHAIN KIT 50'S CHRISTMAS
+- `stock_code`
+- `description`
+- `invoice_date`
+- `price`
+- `quantity`
 
-### Latest Verified Run Summary
-- Report artifact: `results/reports/product_selection_report.json`
-- Output dataset: `data/processed/selected_products.parquet`
-- Frozen selected universe size: 5 products
+### 11.3 Pre-Selection Logic
 
-### Handoff Contract
-- Only the frozen five `stock_code` values in `selected_products.parquet` are valid for downstream steps beginning with Aggregation
-- Product universe must not change unless Product selection is intentionally rerun and re-frozen
+The step:
 
-## Aggregation - Daily Product Aggregation
+- loads the cleaned parquet
+- re-parses `invoice_date`
+- drops any rows with invalid dates if they occur
+- creates `invoice_day = invoice_date.dt.date`
+- creates `revenue_line = price * quantity`
 
-### Objective
-- Aggregate transactional data to daily product-level time series for the frozen selected products
+### 11.4 Product-Level Metrics Computed
 
-### Rationale
-- Daily granularity balances responsiveness and stability for pricing simulation
-- Aggregation removes invoice-level noise while preserving demand and price signals required for lag features
+For each `stock_code`, the implementation computes:
 
-### Implementation Files
+- `revenue` as the sum of `revenue_line`
+- `price_std` as the standard deviation of `price`
+- `active_days` as the number of unique `invoice_day` values
+
+### 11.5 Eligibility Filters
+
+The current eligibility filters are:
+
+- `price_std > 0.0`
+- `active_days >= 150`
+
+### 11.6 Ranking and Description Assignment
+
+Eligible products are sorted by `revenue` descending, and the top `5` are selected.
+
+Descriptions are assigned using `_build_description_map()`, which:
+
+- removes null or blank descriptions
+- groups by `stock_code`
+- assigns the mode of the descriptions for that code
+
+This is a robustness detail: if a stock code has minor textual variations in `description`, the implementation uses the most frequent description rather than the first seen description.
+
+### 11.7 Product Selection Report Payload
+
+The report JSON contains:
+
+- `step`
+- `name`
+- `selection_parameters`
+- `run_summary`
+- `selected_products`
+
+### 11.8 Selected Products Dataset Schema
+
+The exact frozen schema is:
+
+1. `stock_code`
+2. `description`
+3. `revenue`
+4. `price_std`
+5. `active_days`
+
+### 11.9 Selected Products Validation Rules
+
+`validate_selected_products()` requires:
+
+- exact column order
+- non-empty dataset
+- exactly `5` rows
+- non-null, non-blank `stock_code` values
+
+### 11.10 Current Frozen Selection Results
+
+From the current report artifact and logs:
+
+- products analyzed: `3,801`
+- eligible products: `484`
+- selected products: `5`
+
+The current frozen product universe is:
+
+| Stock code | Description | Revenue | Price std | Active days |
+| --- | --- | ---: | ---: | ---: |
+| `22423` | REGENCY CAKESTAND 3 TIER | 142273.29 | 4.5361392367 | 301 |
+| `85123A` | WHITE HANGING HEART T-LIGHT HOLDER | 100676.23 | 1.0086196376 | 305 |
+| `47566` | PARTY BUNTING | 93658.53 | 2.1793744767 | 291 |
+| `85099B` | JUMBO BAG RED RETROSPOT | 86471.34 | 0.9151869223 | 300 |
+| `22086` | PAPER CHAIN KIT 50'S CHRISTMAS | 62742.54 | 1.1454285635 | 161 |
+
+## 12. Daily Aggregation Implementation
+
+### 12.1 Module and Output
+
+Aggregation is implemented in:
+
 - `preprocessing/aggregate_daily.py`
 
-### Outputs
+Outputs:
+
 - `data/processed/daily_product_data.parquet`
 - `logs/aggregation.log`
 
-### Status
-- Completed
+### 12.2 Input Requirements
 
-### Implemented Scope
-- Load cleaned transactions and restrict to frozen selected product universe
-- Aggregate to one row per (`stock_code`, `invoice_day`) with units, average price, and revenue
-- Enforce schema and non-null contract validations for aggregated output
-- Persist daily product-level dataset for feature engineering
+Inputs are:
 
-### Frozen Results
-- Source data: `data/processed/clean_transactions.parquet`
-- Product scope source: `data/processed/selected_products.parquet`
-- Aggregation keys: `stock_code`, `invoice_day`
-- Computed metrics:
-  - `daily_units = sum(quantity)`
-  - `avg_daily_price = mean(price)`
-  - `daily_revenue = sum(price * quantity)`
-- Latest run summary:
-  - Input rows: 484,082
-  - Filtered rows (selected products): 8,680
-  - Aggregated output rows: 1,358
-  - Unique products: 5
-  - Date range: 2010-12-01 to 2011-12-09
+- cleaned transactions parquet
+- selected products parquet
 
-### Latest Verified Run Summary
-- Output dataset: `data/processed/daily_product_data.parquet`
-- Logged outputs: `logs/aggregation.log`
-- Aggregation remains one row per (`stock_code`, `invoice_day`)
+The selected-products parquet is validated before use.
 
-### Handoff Contract
-- Feature engineering expects one row per (`stock_code`, `invoice_day`) with `daily_units`, `avg_daily_price`, `daily_revenue`
-- Chronological ordering by `invoice_day` is required for lag feature correctness
+### 12.3 Aggregation Logic
 
-## Feature engineering - Demand Feature Engineering
+The step:
 
-### Objective
-- Create model-ready demand and seasonality features
+- loads selected products
+- standardizes selected stock codes to uppercase trimmed strings
+- loads cleaned transactions
+- filters the cleaned data to the selected stock codes
+- parses `invoice_date`
+- creates `invoice_day` using `.dt.normalize()`
+- computes `revenue_line = quantity * price`
+- groups by `(stock_code, invoice_day)`
 
-### Rationale
-- Lag/rolling features encode short-term demand memory needed for demand forecasting
-- Calendar one-hot features allow the linear model to capture non-linear weekday/month effects without imposing ordinal distance assumptions
-- Per-product chronological split prevents leakage from future observations into training
+The grouped outputs are:
 
-### Implementation Files
+- `daily_units = sum(quantity)`
+- `avg_daily_price = mean(price)`
+- `daily_revenue = sum(revenue_line)`
+
+Rows are then sorted by:
+
+- `stock_code`
+- `invoice_day`
+
+using stable `mergesort`.
+
+### 12.4 Aggregation Output Schema
+
+The exact frozen column order is:
+
+1. `stock_code`
+2. `invoice_day`
+3. `daily_units`
+4. `avg_daily_price`
+5. `daily_revenue`
+
+### 12.5 Aggregation Validation Rules
+
+`validate_daily_aggregation()` requires:
+
+- exact column order
+- non-empty dataset
+- no null `stock_code`
+- no null `invoice_day`
+
+### 12.6 Current Frozen Aggregation Results
+
+From `logs/aggregation.log`, the current aggregation summary is:
+
+- cleaned input rows: `484,082`
+- rows belonging to selected products: `8,680`
+- aggregated output rows: `1,358`
+- products: `5`
+- date range: `2010-12-01` to `2011-12-09`
+
+Per-product daily row counts in the frozen aggregated table are:
+
+| Stock code | Daily rows |
+| --- | ---: |
+| `22086` | 161 |
+| `22423` | 301 |
+| `47566` | 291 |
+| `85099B` | 300 |
+| `85123A` | 305 |
+
+## 13. Feature Engineering Implementation
+
+### 13.1 Module and Outputs
+
+Feature engineering is implemented in:
+
 - `preprocessing/feature_engineering.py`
 
-### Outputs
+Outputs:
+
 - `data/processed/feature_train_data.parquet`
 - `data/processed/feature_test_data.parquet`
 - `logs/feature_engineering.log`
 
-### Status
-- Completed
+### 13.2 Input Requirements
 
-### Implemented Scope
-- Build lag/rolling demand features and calendar seasonality features at product-day level
-- Generate complete weekday/month one-hot columns with frozen column contract
-- Drop rows lacking required lag history and split chronologically per product (80/20)
-- Validate train/test schemas and persist feature datasets for model training/evaluation
+The daily aggregated dataset must contain:
 
-### Frozen Results
-- Source data: `data/processed/daily_product_data.parquet`
-- Base features:
-  - `lag1_units`
-  - `lag7_units`
-  - `rolling7_mean_units`
-  - `avg_daily_price`
-- Seasonality features:
-  - Raw calendar fields: `weekday`, `month`
-  - Weekday one-hot columns: `weekday_0` to `weekday_6`
-  - Month one-hot columns: `month_1` to `month_12`
-- Frozen feature set:
-  - `lag1_units`
-  - `lag7_units`
-  - `rolling7_mean_units`
-  - `avg_daily_price`
-  - `weekday_0` to `weekday_6`
-  - `month_1` to `month_12`
-- Split logic: chronological per product, first 80% train / last 20% test, no shuffling
-- Lag handling: rows with missing lag features are dropped after feature creation
-- Latest run summary:
-  - Input rows: 1,358
-  - Modeled rows after lag-drop: 1,323
-  - Train rows: 1,057
-  - Test rows: 266
-  - Products covered: 5
+- `stock_code`
+- `invoice_day`
+- `daily_units`
+- `avg_daily_price`
+- `daily_revenue`
 
-### Latest Verified Run Summary
-- Output train dataset: `data/processed/feature_train_data.parquet`
-- Output test dataset: `data/processed/feature_test_data.parquet`
-- Logged outputs: `logs/feature_engineering.log`
+### 13.3 Feature Construction Logic
 
-### Handoff Contract
-- Model training must train on `feature_train_data.parquet` and evaluate on `feature_test_data.parquet`
-- Feature columns and casing are frozen unless a coordinated migration updates all downstream steps
+Feature engineering proceeds in this order:
 
-## Model training - Demand Model Training
+1. parse `invoice_day`
+2. sort by `(stock_code, invoice_day)` using stable `mergesort`
+3. compute lagged and rolling demand features within each product
+4. compute weekday and month variables
+5. one-hot encode weekday and month
+6. add any missing one-hot columns as zeros so the schema is fixed
+7. drop rows missing required lag features
+8. split chronologically per product into train and test
+9. sort train and test outputs again by `(stock_code, invoice_day)`
+10. validate both outputs against the frozen schema
 
-### Objective
-- Train a single demand model for downstream simulation
+### 13.4 Demand History Features
 
-### Rationale
-- A single global demand model isolates strategy effects in later comparisons
-- Linear regression provides an interpretable baseline demand-response model appropriate for SME retail analysis
+Within each `stock_code` group:
 
-### Implementation Files
+- `lag1_units` is `daily_units.shift(1)`
+- `lag7_units` is `daily_units.shift(7)`
+- `rolling7_mean_units` is the mean of the previous 7 days excluding the current day, implemented as:
+  - `grouped_units.shift(1).rolling(window=7, min_periods=7).mean()`
+
+This means each retained modeled row requires enough prior history to populate all three lag-related fields.
+
+### 13.5 Calendar Features
+
+Calendar variables are:
+
+- `weekday = invoice_day.dt.weekday`
+- `month = invoice_day.dt.month`
+
+One-hot columns are then generated for:
+
+- weekdays `0` through `6`
+- months `1` through `12`
+
+The code explicitly inserts zero-filled dummy columns if a weekday or month is absent in the observed data so that the output schema remains fixed across reruns.
+
+### 13.6 Train/Test Split Logic
+
+The split is performed separately for each product:
+
+- data is sorted chronologically within the product
+- `split_idx = int(len(product_df) * 0.8)`
+- rows before the split go to train
+- rows at and after the split go to test
+
+The implementation raises an error if a split would make either side empty.
+
+There is no shuffling.
+
+### 13.7 Feature Output Schema
+
+The exact frozen feature schema contains 29 columns in this order:
+
+1. `stock_code`
+2. `invoice_day`
+3. `daily_units`
+4. `avg_daily_price`
+5. `daily_revenue`
+6. `lag1_units`
+7. `lag7_units`
+8. `rolling7_mean_units`
+9. `weekday`
+10. `month`
+11. `weekday_0`
+12. `weekday_1`
+13. `weekday_2`
+14. `weekday_3`
+15. `weekday_4`
+16. `weekday_5`
+17. `weekday_6`
+18. `month_1`
+19. `month_2`
+20. `month_3`
+21. `month_4`
+22. `month_5`
+23. `month_6`
+24. `month_7`
+25. `month_8`
+26. `month_9`
+27. `month_10`
+28. `month_11`
+29. `month_12`
+
+### 13.8 Frozen Model Feature Vector
+
+The demand model uses these 23 predictors:
+
+1. `lag1_units`
+2. `lag7_units`
+3. `rolling7_mean_units`
+4. `avg_daily_price`
+5. `weekday_0`
+6. `weekday_1`
+7. `weekday_2`
+8. `weekday_3`
+9. `weekday_4`
+10. `weekday_5`
+11. `weekday_6`
+12. `month_1`
+13. `month_2`
+14. `month_3`
+15. `month_4`
+16. `month_5`
+17. `month_6`
+18. `month_7`
+19. `month_8`
+20. `month_9`
+21. `month_10`
+22. `month_11`
+23. `month_12`
+
+### 13.9 Feature Validation Rules
+
+`validate_feature_data()` requires:
+
+- exact 29-column schema
+- non-empty dataset
+- no null `stock_code`
+- no null `invoice_day`
+- no null values in `daily_units`, `lag1_units`, `lag7_units`, or `rolling7_mean_units`
+- no negative values in those same demand fields
+- each row has weekday one-hot columns summing to `1`
+- each row has month one-hot columns summing to `1`
+- all frozen model feature columns are present
+
+### 13.10 Current Frozen Feature Results
+
+From `logs/feature_engineering.log` and the generated artifacts:
+
+- aggregated input rows: `1,358`
+- modeled rows after lag-based row removal: `1,323`
+- training rows: `1,057`
+- test rows: `266`
+- products: `5`
+- columns per split: `29`
+
+Current per-product split sizes are:
+
+| Stock code | Train rows | Test rows |
+| --- | ---: | ---: |
+| `22086` | 123 | 31 |
+| `22423` | 235 | 59 |
+| `47566` | 227 | 57 |
+| `85099B` | 234 | 59 |
+| `85123A` | 238 | 60 |
+
+## 14. Demand Model Training Implementation
+
+### 14.1 Module and Outputs
+
+Model training is implemented in:
+
 - `models/demand_model.py`
 
-### Outputs
+Outputs:
+
 - `models/artifacts/demand_model.joblib`
 - `results/metrics/demand_model_metrics.json`
 - `logs/model_training.log`
 
-### Status
-- Completed
+### 14.2 Input Validation
 
-### Implemented Scope
-- Train a Linear Regression model using the feature-engineered training data
-- Target: `daily_units`
-- Features: lag features, `avg_daily_price`, and seasonality indicators defined in `MODEL_FEATURE_COLUMNS`
-- Evaluate model performance on the feature-engineered test dataset
-- Metrics: MAE, RMSE, R²
-- Persist the trained model artifact and evaluation metrics
-- Train once and reuse the frozen model artifact across all pricing strategy simulations
+The train and test feature datasets are validated before fitting. Validation includes:
 
-### Frozen Results
-- Model type: Linear Regression
-- Training dataset: `data/processed/feature_train_data.parquet`
-- Evaluation dataset: `data/processed/feature_test_data.parquet`
-- Feature inputs strictly follow `MODEL_FEATURE_COLUMNS`
-- Target column: `MODEL_TARGET_COLUMN` (`daily_units`)
-- Latest run summary:
-  - Train rows: 1,057
-  - Test rows: 266
-  - MAE: 203.9837
-  - RMSE: 269.8077
-  - R²: -1.1479
-- Model artifact stored at `models/artifacts/demand_model.joblib`
-- Metrics stored at `results/metrics/demand_model_metrics.json`
+- full feature-schema validation via `validate_feature_data()`
+- presence of all 23 feature columns plus the target column `daily_units`
+- failure if any of those required fields contain null values
 
-### Latest Verified Run Summary
-- Model artifact: `models/artifacts/demand_model.joblib`
-- Metrics artifact: `results/metrics/demand_model_metrics.json`
-- Logged outputs: `logs/model_training.log`
+### 14.3 Model Type
 
-### Handoff Contract
-- Simulation runs must load the persisted demand model artifact
-- No retraining or feature modification is permitted after model training completes
-- All simulations must rely on this frozen model artifact to generate demand predictions
+The fitted model is:
 
-## Simulation - Shared Simulation Engine
+- `sklearn.linear_model.LinearRegression`
 
-### Objective
-- Simulate day-level pricing decisions using predicted demand only
+No alternative model implementations are currently present in the training pipeline.
 
-### Rationale
-- A common simulator ensures strategies are compared under identical demand predictions and candidate price sets
-- Using predicted demand only enforces offline counterfactual consistency and prevents leakage from observed outcomes
-- The simulator provides the controlled experimental environment in which pricing strategies operate
-- Strategies do not compute demand or revenue directly; they only select a price from candidate options generated by the simulator
+### 14.4 Training and Evaluation Procedure
 
-### Implementation Files
-- `simulation/simulator.py`
+The model training step:
 
-### Outputs
-- `results/simulation/{strategy}_candidates.parquet`
-- `results/simulation/{strategy}_results.parquet`
-- `logs/simulation.log`
+- loads train and test parquet files
+- extracts `x_train`, `y_train`, `x_test`, `y_test`
+- fits `LinearRegression()` on `x_train`
+- predicts on `x_test`
+- computes:
+  - mean absolute error
+  - root mean squared error
+  - R-squared
+- serializes the trained estimator with `joblib.dump`
+- writes metrics to JSON
 
-### Status
-- Completed
+### 14.5 Current Frozen Model Metrics
 
-### Implemented Scope
-- Input artifacts: `data/processed/feature_test_data.parquet`, `models/artifacts/demand_model.joblib`
-- Supported strategies: `rule`, `ml`, `hybrid`
-- For each product/day row, set `base_price = avg_daily_price` and generate candidate prices using `SIMULATION_GRID_POINTS` over `+/- PRICE_GRID_PERCENTAGE`
-- Predict demand for each candidate using the frozen demand model artifact, then clamp to non-negative values
-- Compute candidate revenue using `predicted_revenue = candidate_price * predicted_demand`
-- Build a per-row candidate decision table and pass it to the selected strategy implementation
-- Strategy interface contract: `choose_price(candidate_table, context)`
-- Approved context schema:
-  - common: `base_price`, `row`, `strategy_name`
-  - hybrid-only: `previous_price` (stateful value maintained by the simulator per product)
-- Persist both candidate-level outputs and chosen-price result outputs as Parquet files
-- Validate output schemas using `SIMULATION_CANDIDATE_FROZEN_COLUMNS` and `SIMULATION_RESULT_FROZEN_COLUMNS`
-- Execute one strategy per run, for example: `python main.py --simulate rule`
-- Execute all strategies explicitly: `python main.py --simulate all`
-- No implicit default strategy is used; `--simulate` must be explicitly set to `rule`, `ml`, `hybrid`, or `all`
+From `results/metrics/demand_model_metrics.json` and `logs/model_training.log`, the current model metrics are:
 
-### Frozen Results
-- Candidate schema: `invoice_day`, `stock_code`, `candidate_price`, `predicted_demand`, `predicted_revenue`, `candidate_rank_by_revenue`
-- Result schema: `invoice_day`, `stock_code`, `base_price`, `previous_price`, `chosen_price`, `price_change`, `abs_price_change`, `predicted_demand`, `predicted_revenue`, `strategy_name`
-- Latest verified run summary (`rule` strategy run):
-  1. Test rows: 266
-  2. Candidate rows: 1,330
-  3. Result rows: 266
-  4. Date range: 2011-10-02 to 2011-12-09
-  5. Unique products: 5
-  6. Verified command: `venv/bin/python main.py --simulate rule`
+- model type: `LinearRegression`
+- target: `daily_units`
+- train rows: `1,057`
+- test rows: `266`
+- MAE: `203.98369661531677`
+- RMSE: `269.8076731882339`
+- R-squared: `-1.147905626166002`
 
-### Latest Verified Run Summary
-- Verified command: `venv/bin/python main.py --simulate rule`
-- Latest verified baseline simulation snapshot:
-  - test rows: 266
-  - candidate rows: 1,330
-  - result rows: 266
-  - date range: 2011-10-02 to 2011-12-09
-  - unique products: 5
+Rounded presentation values:
 
-### Handoff Contract
-- All pricing strategies must consume the Simulation candidate table and approved simulator context (`base_price`, `row`, `strategy_name`; Hybrid additionally receives `previous_price`) and return a single `chosen_price` to the simulator
-- Evaluation must consume Simulation result outputs; no strategy may bypass the simulator
+- MAE: `203.9837`
+- RMSE: `269.8077`
+- R-squared: `-1.1479`
 
-## Rule-based strategy - Rule-Based Pricing Strategy
+### 14.6 Current Frozen Coefficients
 
-### Objective
-- Implement deterministic heuristic pricing baseline
+The current saved linear model has:
 
-### Rationale
-- The rule-based policy serves as an operationally intuitive baseline that SMEs can understand and implement quickly
-- Determinism provides a stable comparator for ML and Hybrid strategies
+- intercept: `137.97799338611006`
 
-### Implementation Files
+Feature coefficients:
+
+| Feature | Coefficient |
+| --- | ---: |
+| `lag1_units` | -0.030819713585271153 |
+| `lag7_units` | -0.04451092069492718 |
+| `rolling7_mean_units` | 0.25198080752327895 |
+| `avg_daily_price` | -6.2911506909228825 |
+| `weekday_0` | 9.989426013404199 |
+| `weekday_1` | 28.534327454360838 |
+| `weekday_2` | 0.8639408004399678 |
+| `weekday_3` | 17.920352438333502 |
+| `weekday_4` | -8.677911873714892 |
+| `weekday_5` | approximately 0 (`-1.7053025658242404e-13`) |
+| `weekday_6` | -48.63013483282355 |
+| `month_1` | -25.177738346332802 |
+| `month_2` | -46.61815654632982 |
+| `month_3` | -26.517230783316272 |
+| `month_4` | -17.739095897189248 |
+| `month_5` | -5.447485698655004 |
+| `month_6` | -43.01115533547764 |
+| `month_7` | -29.454477870983947 |
+| `month_8` | -39.977986397711774 |
+| `month_9` | -36.5804883183742 |
+| `month_10` | -14.675045129535082 |
+| `month_11` | 319.97711508003323 |
+| `month_12` | -34.778254756127446 |
+
+These coefficients are part of the frozen implementation state and can be cited if coefficient interpretability is needed, though the poor predictive performance means they should not be over-interpreted causally.
+
+## 15. Strategy Layer
+
+Three strategy modules expose `choose_price(candidate_table, context)`.
+
+### 15.1 Shared Expectations Across Strategies
+
+All strategies assume:
+
+- `candidate_table` is non-empty
+- the simulator has already computed `predicted_demand` and `predicted_revenue` for each candidate price
+- price selection must occur from the simulator's candidate grid, not from arbitrary continuous prices
+
+### 15.2 Rule-Based Strategy
+
+Implemented in:
+
 - `strategies/rule_based.py`
 
-### Outputs
-- `results/simulation/rule_candidates.parquet`
-- `results/simulation/rule_results.parquet`
+#### Core logic
 
-### Status
-- Completed
+The rule-based strategy:
 
-### Implemented Scope
-- Compare predicted demand at `base_price` against `rolling7_mean_units`
-- Increase target price by `RULE_PRICE_INCREASE` when base predicted demand is above rolling mean
-- Decrease target price by `RULE_PRICE_DECREASE` when base predicted demand is below rolling mean
-- Keep no-change (`target_price = base_price`) when values are equal
-- Select final `chosen_price` from the Simulation candidate grid using deterministic tie-break:
-  1. smallest distance to target price
-  2. smallest distance to base price
-  3. lower candidate price
+1. obtains `base_price` from the simulation context
+2. reads the current row's `rolling7_mean_units`
+3. looks up predicted demand at the base price candidate
+4. compares predicted base-price demand with the rolling mean
+5. sets a target price:
+   - `base_price * 1.02` if predicted demand is above rolling mean
+   - `base_price * 0.98` if predicted demand is below rolling mean
+   - `base_price` if equal
+6. selects the closest available candidate price to that target
 
-### Frozen Results
-- Strategy file: `strategies/rule_based.py`
-- Latest verified run summary:
-  1. Result rows: 266
-  2. Date range: 2011-10-02 to 2011-12-09
-  3. Unique products: 5
-  4. Output files:
-     - `results/simulation/rule_candidates.parquet`
-     - `results/simulation/rule_results.parquet`
-  5. Verified command: `venv/bin/python main.py --simulate rule`
+#### Fallback detail
 
-### Latest Verified Run Summary
-- Verified command: `venv/bin/python main.py --simulate rule`
-- Output artifacts:
-  - `results/simulation/rule_candidates.parquet`
-  - `results/simulation/rule_results.parquet`
-- Verified result rows: 266
-- Verified date range: 2011-10-02 to 2011-12-09
-- Verified unique products: 5
+If the candidate table does not contain a candidate exactly equal to `base_price`, the strategy uses the nearest available candidate to estimate `base_predicted_demand`. In the current simulation design, the base price is included in the grid because there are 5 evenly spaced points over a symmetric range, but the fallback still exists.
 
-### Handoff Contract
-- Consumes Simulation candidate tables and approved simulator context (`base_price`, `row`, `strategy_name`) and emits chosen-price simulation results for Evaluation
+#### Tie-breaking
 
-## ML strategy - Machine Learning Pricing Strategy
+Candidate choice is ranked by:
 
-### Objective
-- Implement a revenue-maximizing pricing strategy based solely on model predictions
+1. smallest distance to target price
+2. smallest distance to base price
+3. lower candidate price
 
-### Rationale
-- This strategy represents the pure optimisation baseline under the shared demand model
-- It isolates the maximum achievable revenue under unconstrained model-driven pricing
-- No operational constraints are applied so that volatility effects can be observed directly
-- The strategy provides the upper bound benchmark against which the Hybrid strategy can be evaluated
+### 15.3 Machine Learning Strategy
 
-### Implementation Files
+Implemented in:
+
 - `strategies/ml_pricing.py`
 
-### Outputs
-- `results/simulation/ml_candidates.parquet`
-- `results/simulation/ml_results.parquet`
+#### Core logic
 
-### Status
-- Completed
+The ML strategy is the unconstrained optimizer. It ranks candidates by:
 
-### Implemented Scope
-- Consume candidate tables generated by the Simulation simulator
-- Select the candidate price that maximizes `predicted_revenue`
-- No clamp constraints are applied
-- No smoothing is applied
-- Deterministic tie-breaking is enforced to ensure reproducibility
+1. highest `predicted_revenue`
+2. smallest distance to the base price
+3. lower candidate price
 
-### Candidate Selection Logic
-- For each candidate table, select candidate with maximum `predicted_revenue`
-- If multiple candidates share the same revenue:
-  1. choose candidate with smallest distance to `base_price`
-  2. if still tied, choose the lower `candidate_price`
-- This ensures deterministic behaviour across runs
+It then returns the top-ranked candidate price.
 
-### Strategy Behaviour
-- The ML strategy directly selects the price that maximizes predicted revenue:
-  - `chosen_price = argmax(predicted_revenue)`
-- No stability constraints are imposed
+This strategy has no inter-day stability control.
 
-### Strategy Characteristics
-- Highest responsiveness to demand signals
-- Highest potential revenue
-- Potentially high price volatility
-- This behaviour intentionally reflects the unconstrained optimisation paradigm commonly used in dynamic pricing research
+### 15.4 Hybrid Strategy
 
-### Frozen Results
-- Strategy file: `strategies/ml_pricing.py`
-- Latest run summary:
-  1. Test rows: 266
-  2. Candidate rows: 1,330
-  3. Result rows: 266
-  4. Date range: 2011-10-02 to 2011-12-09
-  5. Unique products: 5
-- Output files:
-  - `results/simulation/ml_candidates.parquet`
-  - `results/simulation/ml_results.parquet`
+Implemented in:
 
-### Latest Verified Run Summary
-- Latest recorded ML strategy execution: `python main.py --simulate ml`
-- Output artifacts remain the frozen benchmark inputs for comparative Evaluation
-
-### Handoff Contract
-- Consumes Simulation candidate tables and approved simulator context (`base_price`, `row`, `strategy_name`)
-- Emits chosen-price simulation results for Evaluation
-
-## Hybrid strategy - Hybrid Pricing Strategy
-### Objective
-- Combine machine learning optimisation with operational price stability controls
-
-### Rationale
-- Retail SMEs often require predictable pricing behaviour alongside revenue optimisation
-- The Hybrid strategy integrates ML-based price selection with stability constraints
-- This reflects real-world pricing governance where algorithmic recommendations are moderated by operational limits
-- The strategy tests whether revenue gains from ML can be retained while reducing price volatility
-
-### Implementation Files
 - `strategies/hybrid_pricing.py`
 
-### Outputs
-- `results/simulation/hybrid_candidates.parquet`
-- `results/simulation/hybrid_results.parquet`
+#### Core logic
 
-### Status
-- Completed
+The hybrid strategy:
 
-### Implemented Scope
-- Begin with the ML-optimal candidate price
-- Apply daily price-change clamp constraints
-- Apply exponential smoothing to reduce volatility
-- Enforce candidate-grid compliance
-- Maintain stateful pricing behaviour across days
+1. computes the ML-optimal price using the same ranking logic as the ML strategy
+2. computes a clamp interval around `previous_price`
+3. clips the ML-optimal price to that interval
+4. smooths the clamped price toward the previous price
+5. projects the smoothed value back to the nearest candidate price
 
-### Hybrid Pricing Pipeline
-- The hybrid strategy follows a four-step process:
-  - ML optimal price
-  - Daily clamp constraint
-  - Exponential smoothing
-  - Nearest candidate selection
-- Step 1 - ML Optimal Price
-  - Identify the ML-optimal candidate price: `ml_price = ML-optimal candidate_price`
-  - Tie-breaking follows the same deterministic rules as ML strategy
-- Step 2 - Daily Clamp Constraint
-  - Clamp the ML price relative to the previous chosen price
-  - `lower_bound = previous_price * (1 - MAX_DAILY_CHANGE)`
-  - `upper_bound = previous_price * (1 + MAX_DAILY_CHANGE)`
-  - `clamped_price = min(max(ml_price, lower_bound), upper_bound)`
-  - Rationale:
-    1. Prevents abrupt price jumps
-    2. Reflects common retail operational limits
-    3. Maintains continuity in pricing trajectories
-- Step 3 - Exponential Smoothing
-  - Apply smoothing between the clamped price and the previous price
-  - `smoothed_price = HYBRID_SMOOTHING_ALPHA * clamped_price + (1 - HYBRID_SMOOTHING_ALPHA) * previous_price`
-  - Rationale:
-    1. Dampens short-term volatility
-    2. Ensures gradual price adjustments
-    3. Mimics real-world pricing moderation practices
-- Step 4 - Candidate Grid Compliance
-  - Strategies must select from the simulator’s candidate grid
-  - Final price is the candidate closest to the smoothed value:
-    - `chosen_price = candidate with minimum distance to smoothed_price`
-  - Tie-breaking rules:
-    1. closest to smoothed_price
-    2. closest to base_price
-    3. lower candidate_price
+The clamp interval is:
 
-### Stateful Behaviour
-- Hybrid pricing operates statefully across days
-- The simulator maintains `previous_price_by_product[stock_code]`
-- Context passed to the strategy:
-  - `context = {base_price, previous_price, row, strategy_name}`
-- Initialization rule:
-  - `previous_price = base_price` for the first day of each product
+- lower bound: `previous_price * (1 - MAX_DAILY_CHANGE)`
+- upper bound: `previous_price * (1 + MAX_DAILY_CHANGE)`
 
-### Strategy Characteristics
-- Hybrid pricing aims to achieve:
-  1. revenue performance close to ML pricing
-  2. significantly reduced price volatility
-  3. operationally realistic pricing trajectories
-- This allows direct evaluation of the trade-off between revenue optimisation and pricing stability
+With current default parameters:
 
-### Frozen Results
-- Strategy file: `strategies/hybrid_pricing.py`
-- Latest verified run summary:
-  1. Test rows: 266
-  2. Candidate rows: 1,330
-  3. Result rows: 266
-  4. Date range: 2011-10-02 to 2011-12-09
-  5. Unique products: 5
-- Output files:
-  - `results/simulation/hybrid_candidates.parquet`
-  - `results/simulation/hybrid_results.parquet`
-- Verified command: `venv/bin/python main.py --simulate hybrid`
+- lower bound: `previous_price * 0.97`
+- upper bound: `previous_price * 1.03`
 
-### Latest Verified Run Summary
-- Verified command: `venv/bin/python main.py --simulate hybrid`
-- Output artifacts:
-  - `results/simulation/hybrid_candidates.parquet`
-  - `results/simulation/hybrid_results.parquet`
-- Verified test rows: 266
-- Verified candidate rows: 1,330
-- Verified result rows: 266
-- Verified date range: 2011-10-02 to 2011-12-09
-- Verified unique products: 5
+The smoothing equation is:
 
-### Handoff Contract
-- Consumes Simulation candidate tables and simulator context (`base_price`, `previous_price`, `row`, `strategy_name`)
-- Emits chosen-price simulation results for Evaluation
+- `smoothed_price = HYBRID_SMOOTHING_ALPHA * clamped_price + (1 - HYBRID_SMOOTHING_ALPHA) * previous_price`
 
-## Evaluation - Strategy Evaluation and Statistical Testing
+With current default `HYBRID_SMOOTHING_ALPHA = 0.3`, this becomes:
 
-### Objective
-- Quantitatively evaluate and compare pricing strategies in terms of revenue performance and pricing stability
+- `smoothed_price = 0.3 * clamped_price + 0.7 * previous_price`
 
-### Rationale
-- The study compares rule-based, machine learning, and hybrid pricing strategies using one consistent evaluation contract
-- Revenue metrics capture economic effectiveness of pricing decisions
-- Stability metrics capture operational realism in environments where excessive price volatility is undesirable
-- Statistical testing distinguishes systematic strategy differences from random variation
+#### Final projection tie-breaking
 
-### Implementation Files
-- `main.py`
+The final projection back to the candidate grid ranks candidates by:
+
+1. smallest distance to `smoothed_price`
+2. smallest distance to `base_price`
+3. lower candidate price
+
+#### Stateful property
+
+Unlike the other two strategies, the hybrid strategy requires `previous_price` in the context. This makes it sequential and path-dependent at the product level.
+
+## 16. Shared Simulation Engine
+
+### 16.1 Module and Outputs
+
+Simulation is implemented in:
+
+- `simulation/simulator.py`
+
+For each strategy, it writes:
+
+- candidate table parquet
+- result table parquet
+
+Current configured paths are:
+
+| Strategy | Candidate output | Result output |
+| --- | --- | --- |
+| `rule` | `results/simulation/rule_candidates.parquet` | `results/simulation/rule_results.parquet` |
+| `ml` | `results/simulation/ml_candidates.parquet` | `results/simulation/ml_results.parquet` |
+| `hybrid` | `results/simulation/hybrid_candidates.parquet` | `results/simulation/hybrid_results.parquet` |
+
+### 16.2 Simulation Inputs
+
+Simulation requires:
+
+- `data/processed/feature_test_data.parquet`
+- `models/artifacts/demand_model.joblib`
+
+The test feature dataset must contain:
+
+- `invoice_day`
+- `stock_code`
+- `avg_daily_price`
+- all 23 model feature columns
+
+### 16.3 Candidate Grid Construction
+
+Candidate prices are created by:
+
+- `low = base_price * (1 - 0.05)`
+- `high = base_price * (1 + 0.05)`
+- `np.linspace(low, high, 5)`
+
+Therefore, the five candidate multipliers are exactly:
+
+- `0.95`
+- `0.975`
+- `1.00`
+- `1.025`
+- `1.05`
+
+Because the grid has an odd number of evenly spaced points around the base price, the base price itself is included.
+
+### 16.4 Candidate Prediction Logic
+
+For each candidate price:
+
+- a feature row is copied from the current test row
+- `avg_daily_price` is replaced with the candidate price
+- the frozen linear model predicts demand
+- predicted demand is clipped at zero from below
+- predicted revenue is computed as `candidate_price * predicted_demand`
+
+### 16.5 Candidate Table Schema
+
+The exact candidate schema is:
+
+1. `invoice_day`
+2. `stock_code`
+3. `candidate_price`
+4. `predicted_demand`
+5. `predicted_revenue`
+6. `candidate_rank_by_revenue`
+
+### 16.6 Result Table Schema
+
+The exact simulation result schema is:
+
+1. `invoice_day`
+2. `stock_code`
+3. `base_price`
+4. `previous_price`
+5. `chosen_price`
+6. `price_change`
+7. `abs_price_change`
+8. `predicted_demand`
+9. `predicted_revenue`
+10. `strategy_name`
+
+### 16.7 Strategy Context
+
+The simulator builds a context dictionary containing:
+
+- `base_price`
+- `row`
+- `strategy_name`
+
+For the hybrid strategy it also adds:
+
+- `previous_price`
+
+The context keys are explicitly checked against expected key sets.
+
+### 16.8 Previous Price Initialization
+
+The simulator tracks `previous_price_by_product`. For each product:
+
+- if no previous chosen price exists yet, `previous_price = base_price`
+- otherwise, `previous_price` is the last chosen price for that product
+
+This means each product's simulation trajectory is sequential within the test period.
+
+### 16.9 Chosen-Candidate Resolution
+
+After a strategy returns a price:
+
+- if that exact candidate price exists, its row is selected
+- otherwise, the simulator falls back to the nearest candidate price
+
+### 16.10 Result Record Construction
+
+The simulator records:
+
+- `price_change = chosen_price - previous_price`
+- `abs_price_change = abs(price_change)`
+- `predicted_demand` and `predicted_revenue` from the chosen candidate row
+
+### 16.11 Candidate Validation Rules
+
+`validate_simulation_candidates()` requires:
+
+- exact candidate schema
+- non-empty dataset
+- no null `invoice_day`
+- no null `stock_code`
+- all `candidate_price > 0`
+- all `predicted_demand >= 0`
+- all `predicted_revenue >= 0`
+- all `candidate_rank_by_revenue >= 1`
+
+### 16.12 Result Validation Rules
+
+`validate_simulation_results()` requires:
+
+- exact result schema
+- non-empty dataset
+- no null `invoice_day`
+- no null `stock_code`
+- all `base_price > 0`
+- all `chosen_price > 0`
+- all `previous_price > 0`
+- `price_change` must equal `chosen_price - previous_price`
+- `abs_price_change` must equal `abs(price_change)`
+- `abs_price_change >= 0`
+- `predicted_demand >= 0`
+- `predicted_revenue >= 0`
+
+### 16.13 Current Frozen Simulation Output Sizes
+
+From `logs/simulation.log` and the parquet files:
+
+- test rows per strategy: `266`
+- candidate rows per strategy: `1,330`
+- result rows per strategy: `266`
+
+The candidate count is exactly:
+
+- `266 x 5 = 1,330`
+
+### 16.14 Example of Hybrid Sequential Behaviour
+
+The current frozen `hybrid_results.parquet` shows the sequential nature of the hybrid policy. For stock code `22086`, the first observed test row uses:
+
+- `base_price = 3.460000`
+- `previous_price = 3.460000`
+- `chosen_price = 3.460000`
+
+On the next test row for the same product:
+
+- `base_price = 2.910000`
+- `previous_price = 3.460000`
+- `chosen_price = 3.055500`
+
+This illustrates that the hybrid strategy is constrained by the previous chosen price rather than acting independently on each row.
+
+## 17. Evaluation Metrics Implementation
+
+### 17.1 Module and Outputs
+
+Evaluation metrics are implemented in:
+
 - `evaluation/metrics.py`
-- `evaluation/statistical_tests.py`
-- `config.py`
-- `utils/data_contracts.py`
-- `utils/logging_config.py`
-- `utils/simulation_artifacts.py`
 
-### Outputs
+Outputs:
+
+- `results/metrics/strategy_metrics.parquet`
+- `results/metrics/strategy_summary.json`
+- `logs/evaluation.log`
+
+### 17.2 Simulation Output Loading
+
+Evaluation does not directly read arbitrary files from `results/simulation/`. Instead, it uses `utils/simulation_artifacts.py`.
+
+That utility:
+
+- confirms all required result files exist
+- loads each strategy result parquet
+- validates each with `validate_simulation_results()`
+- confirms the `strategy_name` column matches the expected strategy
+- checks that there are no duplicate `(stock_code, invoice_day)` pairs
+- sorts the results by the evaluation pairing keys
+
+### 17.3 Product-Level Metric Formulas
+
+Product-level metrics are computed per `(strategy_name, stock_code)`:
+
+- `total_revenue = sum(predicted_revenue)`
+- `mean_daily_revenue = mean(predicted_revenue)`
+- `mean_absolute_change = mean(abs_price_change)`
+- `max_price_jump = max(abs_price_change)`
+- `change_frequency = mean(price_change != 0)`
+- `price_std = std(chosen_price, ddof=0)`
+
+The product-level rows are then relabeled from `strategy_name` to `strategy` and assigned:
+
+- `metric_level = "product"`
+
+### 17.4 Strategy-Level Metric Formulas
+
+Strategy-level metrics are aggregated from product-level rows:
+
+- `total_revenue = sum(product total_revenue)`
+- `mean_daily_revenue = mean(product mean_daily_revenue)`
+- `mean_absolute_change = mean(product mean_absolute_change)`
+- `price_std = mean(product price_std)`
+- `max_price_jump = max(product max_price_jump)`
+- `change_frequency = mean(product change_frequency)`
+
+Strategy summary rows use:
+
+- `stock_code = "ALL"`
+- `metric_level = "strategy"`
+
+### 17.5 Evaluation Metrics Output Schema
+
+The exact evaluation metrics schema is:
+
+1. `stock_code`
+2. `strategy`
+3. `metric_level`
+4. `total_revenue`
+5. `mean_daily_revenue`
+6. `mean_absolute_change`
+7. `price_std`
+8. `max_price_jump`
+9. `change_frequency`
+
+### 17.6 Evaluation Summary JSON Schema
+
+The strategy summary JSON is a mapping from strategy name to:
+
+- `total_revenue` as float
+- `mean_daily_revenue` as float
+- `mean_absolute_change` as float
+- `price_std` as float
+- `max_price_jump` as float
+- `change_frequency` as float
+
+### 17.7 Evaluation Metrics Validation Rules
+
+`validate_evaluation_metrics()` requires:
+
+- exact column order
+- non-empty dataset
+- non-null `stock_code`
+- non-null, non-blank `strategy`
+- exact strategy set equal to `{"rule", "ml", "hybrid"}`
+- exact metric-level set equal to `{"product", "strategy"}`
+- no null values in summary metric columns
+
+### 17.8 Current Frozen Evaluation Results
+
+From the current `strategy_metrics.parquet` and `strategy_summary.json`:
+
+There are:
+
+- `15` product-level rows
+- `3` strategy-level rows
+- `18` total rows
+
+Current strategy-level summary:
+
+| Strategy | Total revenue | Mean daily revenue | Mean abs change | Price std | Max price jump | Change frequency |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `hybrid` | 378588.42467631155 | 1413.6257208241577 | 0.7599901254026927 | 0.8026869279726642 | 6.728 | 0.9245564156427154 |
+| `ml` | 393990.38449901843 | 1470.9645987269578 | 1.1387687130798765 | 1.0346272395886509 | 8.816999999999998 | 0.9480196253345227 |
+| `rule` | 384707.66064544633 | 1436.0419674174232 | 1.127264443365309 | 1.0126596939143908 | 8.607071428571427 | 0.9514094558429973 |
+
+Rounded presentation values:
+
+| Strategy | Total revenue | Mean daily revenue | Mean abs change | Price std | Max price jump | Change frequency |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `hybrid` | 378588.4247 | 1413.6257 | 0.7600 | 0.8027 | 6.7280 | 0.9246 |
+| `ml` | 393990.3845 | 1470.9646 | 1.1388 | 1.0346 | 8.8170 | 0.9480 |
+| `rule` | 384707.6606 | 1436.0420 | 1.1273 | 1.0127 | 8.6071 | 0.9514 |
+
+### 17.9 Product-Level Results
+
+Current product-level metrics are:
+
+| Stock code | Strategy | Total revenue | Mean daily revenue | Mean abs change | Price std | Max price jump | Change frequency |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `22086` | `hybrid` | 40213.257452 | 1297.201853 | 0.134818 | 0.233344 | 0.920145 | 0.967742 |
+| `22423` | `hybrid` | 160060.368854 | 2712.887608 | 1.947367 | 1.981776 | 6.728000 | 0.949153 |
+| `47566` | `hybrid` | 85093.394301 | 1492.866567 | 1.236288 | 1.233002 | 5.473000 | 0.807018 |
+| `85099B` | `hybrid` | 40648.080539 | 688.950518 | 0.211860 | 0.244504 | 0.854273 | 0.932203 |
+| `85123A` | `hybrid` | 52573.323530 | 876.222059 | 0.269618 | 0.320808 | 1.253500 | 0.966667 |
+| `22086` | `ml` | 41810.734317 | 1348.733365 | 0.304290 | 0.312736 | 1.108579 | 1.000000 |
+| `22423` | `ml` | 166080.898117 | 2814.930477 | 2.834161 | 2.605811 | 8.817000 | 0.983051 |
+| `47566` | `ml` | 88305.187027 | 1549.213807 | 1.717255 | 1.496009 | 6.552000 | 0.824561 |
+| `85099B` | `ml` | 42666.182364 | 723.155633 | 0.356446 | 0.323826 | 1.174091 | 0.949153 |
+| `85123A` | `ml` | 55127.382675 | 918.789711 | 0.481692 | 0.434754 | 1.711500 | 0.983333 |
+| `22086` | `rule` | 40727.172221 | 1313.779749 | 0.295964 | 0.300132 | 1.029395 | 1.000000 |
+| `22423` | `rule` | 162201.589997 | 2749.179491 | 2.832346 | 2.505886 | 8.607071 | 0.983051 |
+| `47566` | `rule` | 86528.829778 | 1518.049645 | 1.681372 | 1.511610 | 6.396000 | 0.824561 |
+| `85099B` | `rule` | 41417.317365 | 701.988430 | 0.348937 | 0.318432 | 1.250136 | 0.966102 |
+| `85123A` | `rule` | 53832.751285 | 897.212521 | 0.477703 | 0.427238 | 1.670750 | 0.983333 |
+
+### 17.10 Interpretation of Frozen Summary
+
+The current implementation therefore yields:
+
+- highest total simulated revenue: `ml`
+- second-highest total simulated revenue: `rule`
+- lowest total simulated revenue: `hybrid`
+- lowest mean absolute price change: `hybrid`
+
+This is the central comparative result that is later checked again in validation.
+
+## 18. Statistical Testing Implementation
+
+### 18.1 Module and Output
+
+Statistical testing is implemented in:
+
+- `evaluation/statistical_tests.py`
+
+Output:
+
+- `results/metrics/statistical_tests.json`
+
+### 18.2 Pairing Logic
+
+For each configured comparison, the implementation performs an inner join on:
+
+- `stock_code`
+- `invoice_day`
+
+using suffixes for the left and right strategies.
+
+The code raises an error if the aligned dataframe length does not exactly match both original inputs. This ensures that the comparison is truly paired.
+
+### 18.3 Tested Quantities
+
+Two quantities are tested:
+
+- revenue: `predicted_revenue`
+- stability: `abs_price_change`
+
+### 18.4 Statistical Tests Applied
+
+For each comparison and each tested quantity, the code applies:
+
+- `scipy.stats.ttest_rel`
+- `scipy.stats.wilcoxon`
+
+If every paired difference is numerically zero, the implementation returns a neutral result:
+
+- statistic `0.0`
+- p-value `1.0`
+- sample size equal to the number of observations
+
+### 18.5 Current Comparison Set
+
+The current configured comparisons are:
+
+- `hybrid_vs_ml`
+- `hybrid_vs_rule`
+
+No direct `ml_vs_rule` test is currently written by the implementation.
+
+### 18.6 Statistical Test JSON Structure
+
+The top-level JSON contains:
+
+- `revenue_tests`
+- `stability_tests`
+
+Each section contains the configured comparison names, and each comparison contains:
+
+- `paired_ttest`
+- `wilcoxon`
+
+Each test result contains:
+
+- `statistic`
+- `p_value`
+- `sample_size`
+
+### 18.7 Validation Rules for Statistical Tests
+
+`validate_evaluation_tests()` requires:
+
+- exact top-level sections
+- exact comparison names
+- exact test names
+- exact scalar fields in each test payload
+- `0 <= p_value <= 1`
+- `sample_size > 0`
+
+### 18.8 Current Frozen Statistical Results
+
+Current sample size for every test is:
+
+- `266`
+
+Current revenue tests:
+
+| Comparison | Test | Statistic | P-value |
+| --- | --- | ---: | ---: |
+| `hybrid_vs_ml` | Paired t-test | -9.11452105497263 | 2.0159424588896765e-17 |
+| `hybrid_vs_ml` | Wilcoxon | 0.0 | 2.2259158724964484e-25 |
+| `hybrid_vs_rule` | Paired t-test | -4.15141204759827 | 4.4580455217169376e-05 |
+| `hybrid_vs_rule` | Wilcoxon | 13568.0 | 0.09819870620532828 |
+
+Current stability tests:
+
+| Comparison | Test | Statistic | P-value |
+| --- | --- | ---: | ---: |
+| `hybrid_vs_ml` | Paired t-test | -13.456489904499222 | 8.252618360769501e-32 |
+| `hybrid_vs_ml` | Wilcoxon | 371.0 | 7.534432739527186e-36 |
+| `hybrid_vs_rule` | Paired t-test | -12.701145861437018 | 3.455550362753332e-29 |
+| `hybrid_vs_rule` | Wilcoxon | 1243.0 | 1.0559464666416308e-36 |
+
+### 18.9 Statistical Interpretation of the Frozen Results
+
+Under the current artifacts:
+
+- hybrid differs significantly from ML on both revenue and stability under both tests
+- hybrid differs significantly from rule on stability under both tests
+- hybrid vs rule revenue is significant under the paired t-test but not under Wilcoxon at the 0.05 threshold
+
+This means the revenue difference between hybrid and rule is weaker and more test-sensitive than the hybrid-versus-ML revenue difference.
+
+## 19. Dashboard Implementation
+
+### 19.1 Module
+
+The dashboard is implemented in:
+
+- `dashboard/app.py`
+
+### 19.2 Dashboard Design Principle
+
+The dashboard is strictly read-only. It does not compute metrics, rerun simulations, or modify analysis artifacts.
+
+It only reads:
+
 - `results/metrics/strategy_metrics.parquet`
 - `results/metrics/strategy_summary.json`
 - `results/metrics/statistical_tests.json`
-- `logs/evaluation.log`
 
-### Status
-- Completed
+### 19.3 Startup Behaviour
 
-### Implemented Scope
-- Add explicit evaluation command via `python main.py --evaluate`
-- Require all three Simulation outputs and fail hard if any are missing
-- Validate each strategy result file against `SIMULATION_RESULT_FROZEN_COLUMNS` before evaluation proceeds
-- Compute product-level metrics for each `(stock_code, strategy)` pair
-- Aggregate product-level metrics into strategy-level rows with `stock_code = EVALUATION_SUMMARY_STOCK_CODE` and `metric_level = EVALUATION_STRATEGY_METRIC_LEVEL`
-- Persist a unified metrics table controlled by `EVALUATION_METRIC_COLUMNS`
-- Persist headline strategy summary JSON for downstream dashboard/reporting use
-- Run paired t-tests and Wilcoxon signed-rank tests for `hybrid_vs_ml` and `hybrid_vs_rule`
-- Centralize Evaluation artifact paths, log file, pairing keys, comparison set, metric-level constants, summary row sentinel, and metric schema constants in `config.py`
-- Centralize shared Evaluation summary/test JSON schema constants in `config.py` for downstream read-only consumers
-- Resolve runtime file paths from `config.py` instead of keeping module-level path constants in step modules
-- Centralize shared Simulation result loading and validation in `utils/simulation_artifacts.py`
-- Define reusable Evaluation artifact validators in `utils/data_contracts.py` for dashboard-time contract enforcement
+On startup, the dashboard:
 
-### Input Artifacts
-- `results/simulation/rule_results.parquet`
-- `results/simulation/ml_results.parquet`
-- `results/simulation/hybrid_results.parquet`
-- All input files must satisfy `SIMULATION_RESULT_FROZEN_COLUMNS`
-- Validation occurs before metrics or tests are written
+- configures logging for the dashboard target
+- sets Streamlit page config
+- attempts to load dashboard inputs
+- stops with a visible error if required artifacts are missing or invalid
 
-### Revenue Metric Computation
-- Revenue is derived directly from simulator outputs: `daily_revenue = predicted_revenue`
-- This preserves the simulator as the canonical source of economic outcomes and avoids recomputation drift
-- Revenue metrics:
-  - `total_revenue = sum(predicted_revenue)`
-  - `mean_daily_revenue = mean(predicted_revenue)` at product level, then mean of product-level values at strategy summary level
+### 19.4 Cached Input Loading
 
-### Stability Metric Computation
-- Stability metrics are derived directly from simulator result columns
-- Metrics:
-  - `mean_absolute_change = mean(abs_price_change)`
-  - `price_std = std(chosen_price)` using per-product price trajectories
-  - `max_price_jump = max(abs_price_change)`
-  - `change_frequency = count(price_change != 0) / total_observations`
-- These metrics jointly describe average adjustment size, dispersion, extreme volatility, and how often prices move
+`load_dashboard_inputs()` is decorated with:
 
-### Metric Aggregation Levels
-- Level 1 - Product-level metrics keyed by `(stock_code, strategy)`
-- Level 2 - Strategy-level summary rows aggregated from product-level metrics
-- `results/metrics/strategy_metrics.parquet` is a single unified table with:
-  - `metric_level = EVALUATION_PRODUCT_METRIC_LEVEL` for SKU rows
-  - `metric_level = EVALUATION_STRATEGY_METRIC_LEVEL` for summary rows
-- Strategy-level rows use `stock_code = EVALUATION_SUMMARY_STOCK_CODE`
+- `@st.cache_data(show_spinner=False)`
 
-### Statistical Testing
-- Paired observations are aligned on `(stock_code, invoice_day)`
-- Comparisons:
-  - `hybrid_vs_ml`
-  - `hybrid_vs_rule`
-- Tests:
-  - Paired t-test
-  - Wilcoxon signed-rank test
-- Metrics tested:
-  - `predicted_revenue`
-  - `abs_price_change`
-- No multiple-testing correction is applied because the four comparisons are pre-specified in the experimental design
-- Each test record contains test statistic, p-value, and sample size
+This caches the dashboard inputs between rerenders.
 
-### Execution
-- The evaluation command runs explicitly after simulations complete
-- Command: `python main.py --evaluate`
-- This command operationalizes roadmap Evaluation on frozen simulation outputs
-- Execution sequence:
-  - load simulation outputs
-  - validate schemas and pairing integrity
-  - compute product and strategy metrics
-  - run paired statistical tests
-  - write evaluation artifacts
+### 19.5 Input Validation
 
-### Frozen Results
-- Latest verified command: `venv/bin/python main.py --evaluate`
-- Input rows per strategy result file: 266
-- Strategy metrics table rows: 18 total
-  - 15 product-level rows
-  - 3 strategy-level rows
-- Latest verified strategy summary:
-  - `hybrid`: `total_revenue = 378588.424676`, `mean_absolute_change = 0.759990`, `price_std = 0.802687`, `max_price_jump = 6.728000`, `change_frequency = 0.924556`
-  - `ml`: `total_revenue = 393990.384499`, `mean_absolute_change = 1.138769`, `price_std = 1.034627`, `max_price_jump = 8.817000`, `change_frequency = 0.948020`
-  - `rule`: `total_revenue = 384707.660645`, `mean_absolute_change = 1.127264`, `price_std = 1.012660`, `max_price_jump = 8.607071`, `change_frequency = 0.951409`
-- Latest verified statistical test headlines:
-  - Revenue `hybrid_vs_ml`: paired t-test `p = 2.0159e-17`, Wilcoxon `p = 2.2259e-25`
-  - Revenue `hybrid_vs_rule`: paired t-test `p = 4.4580e-05`, Wilcoxon `p = 0.0982`
-  - Stability `hybrid_vs_ml`: paired t-test `p = 8.2526e-32`, Wilcoxon `p = 7.5344e-36`
-  - Stability `hybrid_vs_rule`: paired t-test `p = 3.4556e-29`, Wilcoxon `p = 1.0559e-36`
-- Supporting implementation files now include shared artifact loading in `utils/simulation_artifacts.py`
+Before rendering, the dashboard:
 
-### Handoff Contract
-- Dashboard must consume:
-  - `results/metrics/strategy_metrics.parquet`
-  - `results/metrics/strategy_summary.json`
-  - `results/metrics/statistical_tests.json`
-- The dashboard must validate these artifacts against shared Evaluation schema constants and reusable validators before rendering
-- The dashboard must treat these artifacts as read-only analytical outputs and must not recompute metrics or statistical tests
+- checks that all three required evaluation files exist
+- reads the parquet and JSON files
+- validates:
+  - full evaluation metrics table
+  - evaluation summary JSON
+  - evaluation statistical tests JSON
+- filters product-level rows only after validation
 
-## Dashboard - Read-Only Comparison Dashboard
+This is an important design choice. The dashboard validates the full artifact contracts before subsetting for presentation.
 
-### Objective
-- Provide a Streamlit-based dashboard for visual comparison of pricing strategies using precomputed evaluation outputs only
+### 19.6 Product Metrics View Validation
 
-### Rationale
-- The dashboard translates Evaluation analytical outputs into an interpretable interface for comparing pricing strategies
-- Visualization supports comparison across revenue performance and pricing stability
-- A strict read-only design preserves separation between computation (build, model, simulation, and evaluation) and presentation (Dashboard)
-- Shared validators prevent schema drift between the frozen evaluation artifacts and the dashboard layer
+`_dashboard_product_metrics_view()` additionally checks:
 
-### Implementation Files
-- `dashboard/app.py`
-- `config.py`
-- `utils/data_contracts.py`
-- `utils/logging_config.py`
+- product-level rows are not empty
+- the actual strategies present exactly match `{"rule", "ml", "hybrid"}`
+- `stock_code` is converted to string
+- rows are stably sorted by `(stock_code, strategy)`
 
-### Outputs
-- Streamlit dashboard application (local)
-- `logs/dashboard.log`
+### 19.7 Dashboard Sections
 
-### Status
-- Completed
+The dashboard currently renders:
 
-### Implemented Scope
-- Load only Evaluation artifacts:
-  - `results/metrics/strategy_metrics.parquet`
-  - `results/metrics/strategy_summary.json`
-  - `results/metrics/statistical_tests.json`
-- Fail fast if any required artifact is missing
-- Validate the full Evaluation metrics table against `EVALUATION_METRIC_COLUMNS` before any dashboard filtering
-- Validate Evaluation summary and statistical test JSON payloads against shared schema constants in `config.py` via reusable validators in `utils/data_contracts.py`
-- Enforce exact strategy completeness for `rule`, `ml`, and `hybrid`
-- Filter `metric_level == EVALUATION_PRODUCT_METRIC_LEVEL` only after full Evaluation table validation, then subset to `DASHBOARD_PRODUCT_METRIC_COLUMNS` for product-view rendering
-- Render deterministic dashboard sections for strategy KPIs, revenue, pricing stability, product-level comparison, product-level distributions, and flattened statistical test results
-- Log dashboard startup and loaded artifact context to `logs/dashboard.log`
+1. Strategy KPI Summary
+2. Revenue Comparison
+3. Pricing Stability Comparison
+4. Product-Level Strategy Comparison
+5. Product-Level Distribution Analysis
+6. Statistical Test Results
 
-### Input Validation Contract
-- Parquet validation:
-  1. Validate `strategy_metrics.parquet` against `EVALUATION_METRIC_COLUMNS`
-  2. Filter `metric_level == EVALUATION_PRODUCT_METRIC_LEVEL`
-  3. Subset to `DASHBOARD_PRODUCT_METRIC_COLUMNS` for dashboard-only product views
-- JSON validation:
-  - `EVALUATION_SUMMARY_SCHEMA` defines required summary metric keys and float types
-  - `EVALUATION_TEST_SECTION_METRICS` defines required top-level statistical test sections
-  - `EVALUATION_TEST_NAMES` defines required test names per comparison
-  - `EVALUATION_TESTS_SCHEMA` defines required test payload fields and types
-- `dashboard/app.py` must call shared validators only and must not duplicate schema logic locally
+### 19.8 KPI Summary Section
 
-### Dashboard Structure
-- Section 1 - Strategy KPI Summary
-  - Source: `strategy_summary.json`
-  - Metrics: `total_revenue`, `mean_daily_revenue`, `mean_absolute_change`, `price_std`, `max_price_jump`, `change_frequency`
-- Section 2 - Revenue Comparison
-  - Bar chart: `total_revenue` by strategy
-  - Bar chart: `mean_daily_revenue` by strategy
-- Section 3 - Pricing Stability Comparison
-  - Bar charts: `mean_absolute_change`, `price_std`, `max_price_jump`, `change_frequency`
-- Section 4 - Product-Level Strategy Comparison
-  - Select `stock_code`
-  - Compare strategies using product-level rows from `strategy_metrics.parquet`
-- Section 5 - Product-Level Distribution Analysis
-  - Boxplot: `mean_daily_revenue`
-  - Boxplot: `mean_absolute_change`
-  - Constraint: must use only `metric_level == EVALUATION_PRODUCT_METRIC_LEVEL` rows
-- Section 6 - Statistical Test Results
-  - Source: `statistical_tests.json`
-  - On-disk artifact remains nested:
-    ```json
-    {
-      "revenue_tests": {
-        "hybrid_vs_ml": {
-          "paired_ttest": {
-            "statistic": 0.0,
-            "p_value": 1.0,
-            "sample_size": 266
-          },
-          "wilcoxon": {
-            "statistic": 0.0,
-            "p_value": 1.0,
-            "sample_size": 266
-          }
-        }
-      },
-      "stability_tests": {
-        "hybrid_vs_ml": {
-          "paired_ttest": {
-            "statistic": 0.0,
-            "p_value": 1.0,
-            "sample_size": 266
-          },
-          "wilcoxon": {
-            "statistic": 0.0,
-            "p_value": 1.0,
-            "sample_size": 266
-          }
-        }
-      }
-    }
-    ```
-  - Dashboard responsibility: flatten nested results into rows with `comparison`, `metric`, `test`, `statistic`, `p_value`, `sample_size`, `significant`
-  - Significance rule: `significant = p_value < DASHBOARD_SIGNIFICANCE_THRESHOLD`
+Uses summary metrics:
 
-### Constraints
-- The dashboard must NOT:
-  - read from `results/simulation/*`
-  - recompute any metrics
-  - rerun simulations
-  - modify input artifacts
+- `total_revenue`
+- `mean_daily_revenue`
+- `mean_absolute_change`
+- `price_std`
+- `max_price_jump`
+- `change_frequency`
 
-### Execution
-- Run with: `streamlit run dashboard/app.py`
-- Execution flow:
-  1. load artifacts
-  2. validate shared contracts
-  3. validate strategy completeness
-  4. render dashboard
-  5. log execution
+It renders:
 
-### Frozen Results
-- Dashboard consumes only:
-  - `results/metrics/strategy_metrics.parquet`
-  - `results/metrics/strategy_summary.json`
-  - `results/metrics/statistical_tests.json`
-- Full Evaluation schema validation occurs before any Dashboard product filtering
-- Shared validators in `utils/data_contracts.py` enforce read-only dashboard contract integrity
-- Product-level filtering remains deterministic
-- Dashboard has no dependency on `results/simulation/*`
+- a KPI column per strategy
+- a tabular view of the summary metrics
 
-### Latest Verified Run Summary
-- Latest artifact-load verification via `dashboard.app.load_dashboard_inputs()` completed on 2026-04-05
-- Verified loaded dashboard inputs:
-  - product metric rows: 15
-  - strategies: `hybrid`, `ml`, `rule`
-  - statistical test sections: `revenue_tests`, `stability_tests`
-- Latest successful headless Streamlit startup remained: `timeout 10s streamlit run dashboard/app.py --server.headless true --server.port 8501` -> 2026-03-17
+### 19.9 Revenue and Stability Charts
 
-### Handoff Contract
-- Consumes:
-  - `strategy_metrics.parquet`
-  - `strategy_summary.json`
-  - `statistical_tests.json`
-- All inputs are read-only and must be validated before rendering
-- Produces no machine-readable outputs
+Revenue section renders bar charts for:
 
-## Validation - System Validation and Reproducibility
+- `total_revenue`
+- `mean_daily_revenue`
 
-### Objective
-- Validate that Evaluation results are stable and reproducible under controlled re-execution and small parameter variations
+Stability section renders bar charts for:
 
-### Rationale
-- Evaluation produces the final comparative results across pricing strategies
-- This validation step ensures that those results:
-  - remain consistent when the pipeline is re-executed
-  - are not sensitive to small changes in key strategy parameters
-- The goal is to confirm reliability of conclusions rather than introduce new experimental contributions
+- `mean_absolute_change`
+- `price_std`
+- `max_price_jump`
+- `change_frequency`
 
-### Implementation Files
+### 19.10 Product-Level Comparison
+
+The dashboard provides:
+
+- a `stock_code` select box
+- a faceted bar chart over the product comparison metrics
+- a tabular per-strategy comparison for the selected stock code
+
+### 19.11 Distribution Analysis
+
+The dashboard renders boxplots for:
+
+- product-level `mean_daily_revenue`
+- product-level `mean_absolute_change`
+
+### 19.12 Statistical Tests Section
+
+The nested JSON statistical results are flattened into a dataframe with columns:
+
+- `Comparison`
+- `Metric`
+- `Test`
+- `Statistic`
+- `p-value`
+- `Sample Size`
+- `Significant`
+
+Significance is defined as:
+
+- `p_value < 0.05`
+
+## 20. Validation and Reproducibility Implementation
+
+### 20.1 Module and Output
+
+Validation is implemented in:
+
 - `evaluation/validation.py`
-- `main.py`
-- `pipeline/runner.py`
-- `config.py`
-- `utils/data_contracts.py`
-- `utils/logging_config.py`
 
-### Outputs
+Output:
+
 - `results/validation/validation_summary.json`
 - `logs/validation.log`
 
-### Status
-- Completed
+### 20.2 Validation Purpose
 
-### Implemented Scope
-- Load baseline results from:
-  - `results/metrics/strategy_summary.json`
-- Perform a lightweight robustness check using limited parameter variations:
-  - `MAX_DAILY_CHANGE = 0.01`
-  - `HYBRID_SMOOTHING_ALPHA = 0.7`
-- For each variation:
-  - temporarily override the hybrid strategy parameter in-memory
-  - re-execute Simulation for all strategies using the shared simulation engine
-  - re-execute Evaluation metrics and statistical tests using the shared evaluation pipeline
-  - compare resulting strategy rankings with baseline expectations
-- Validate robustness using simple ranking checks:
-  - `ml` remains highest in `total_revenue`
-  - `hybrid` remains lowest in `mean_absolute_change`
-- Perform re-run consistency check:
-  - rerun Simulation for all strategies
-  - rerun Evaluation
-  - compare regenerated `strategy_summary.json` with baseline
-- Validate consistency using numeric tolerance:
-  - `abs(new_value - baseline_value) < 1e-6` for:
-    - `total_revenue`
-    - `mean_absolute_change`
-- Record validation results as boolean flags without interrupting execution
-- Reuse:
-  - Simulation engine
-  - Evaluation pipeline
-- Snapshot and restore Simulation and Evaluation artifacts so validation remains non-destructive
-- Do not retrain the demand model or permanently modify existing artifacts
+Validation is not conventional unit testing. It is a reproducibility and stability workflow that checks whether the frozen comparative findings hold under:
 
-### Frozen Results
+- selected hybrid-parameter perturbations
+- a full rerun consistency check
 
-- Validation summary schema frozen at top-level keys:
-  - overall_passed
-  - baseline_summary
-  - parameter_variations
-  - rerun_consistency
-- Both configured parameter variations preserved the expected ranking checks:
-  - ml remained highest in total_revenue
-  - hybrid remained lowest in mean_absolute_change
-- Re-run consistency matched baseline exactly for all 6 tracked strategy/metric checks within tolerance 1e-6
-- Validation restores the pre-existing Simulation/Evaluation artifacts after validation execution
+### 20.3 Baseline Loading
 
-### Latest Verified Run Summary
+Validation first loads the baseline evaluation summary from:
 
-- Latest successful Validation run: `venv/bin/python main.py --validate` -> 2026-04-05
-- Output artifact written: `results/validation/validation_summary.json`
-- Validation result: `overall_passed = true`
-- Parameter variation rankings:
-  - total_revenue: `ml > rule > hybrid`
-  - mean_absolute_change: `hybrid < rule < ml`
-- Re-run consistency: 6 of 6 checks within tolerance
-- Baseline `results/metrics/strategy_summary.json` matches the frozen baseline captured in `validation_summary.json`
+- `results/metrics/strategy_summary.json`
 
-### Handoff Contract
-- Consumes:
-  - `results/metrics/strategy_summary.json`
-  - `data/processed/feature_test_data.parquet`
-  - `models/artifacts/demand_model.joblib`
-- Produces:
-  - `results/validation/validation_summary.json`
-- Validation outputs are informational and do not modify or replace Evaluation results
-- Temporary Simulation and Evaluation re-execution artifacts are restored to their pre-run state before Validation completes
+That payload is validated with `validate_evaluation_summary()`.
 
-## Current Implementation Note
-- As of April 5, 2026, executable implementation coverage is all grouped domains from inspection through validation
-- Latest completed build run: `python main.py --build` -> 2026-04-05
-- Latest simulation runs by strategy (including Validation re-executions):
-  - `rule` -> 2026-04-05
-  - `ml` -> 2026-04-05
-  - `hybrid` -> 2026-04-05
-- Preferred grouped build command: `python main.py --build`
-- Explicit multi-strategy simulation command: `python main.py --simulate all`
-- Latest evaluation re-execution: evaluation command reused inside `python main.py --validate` -> 2026-04-05
-- Latest successful dashboard server verification run: `timeout 10s streamlit run dashboard/app.py --server.headless true --server.port 8501` -> 2026-03-17
-- Latest dashboard artifact-load verification run via shared validators: `dashboard.app.load_dashboard_inputs()` -> 2026-04-05
-- Implemented explicit evaluation command: `python main.py --evaluate`
-- Implemented read-only Dashboard that consumes only:
-  - `results/metrics/strategy_metrics.parquet`
-  - `results/metrics/strategy_summary.json`
-  - `results/metrics/statistical_tests.json`
-- Dashboard runtime must not read `results/simulation/*` or recompute metrics/statistical tests
-- Shared Evaluation summary/test schema constants and reusable dashboard validators were added on 2026-03-18
-- Internal refactor coverage updated through 2026-04-05 for shared artifact validation, full-schema dashboard loading, grouped execution naming, and documentation alignment
-- Internal execution refactor updated on 2026-04-05 for shared named runtime domains: `build`, `simulate`, `evaluate`, `validate`, `dashboard`
-- Implemented explicit validation command: `python main.py --validate`
-- Implemented Validation/reproducibility runner on 2026-03-18 via `python main.py --validate`
+### 20.4 Artifact Preservation Mechanism
 
-## Final Frozen Design Decisions
-- Dataset restricted to 2010-2011 only
-- CSV working format
-- UK-only market scope
-- Five selected products
-- Daily aggregation level
-- Chronological 80/20 split per product
-- Single demand model (Linear Regression)
-- Simulation uses predicted demand only
-- Hybrid strategy includes clamp constraint
-- No arbitrary statistical trimming without inspection
-- Outlier removal must be economically justified and documented
+The validator identifies a managed set of artifacts:
+
+- evaluation metrics parquet
+- evaluation summary JSON
+- evaluation tests JSON
+- every simulation candidate parquet
+- every simulation result parquet
+
+`_preserve_managed_artifacts()` snapshots these files into a temporary directory and restores them after validation finishes. If an artifact did not exist before validation but was created during validation, it is deleted on exit.
+
+This makes the validation workflow non-destructive.
+
+### 20.5 Temporary Hybrid Override Mechanism
+
+Validation applies parameter changes by temporarily monkey-patching module-level variables in `strategies.hybrid_pricing`:
+
+- `MAX_DAILY_CHANGE`
+- `HYBRID_SMOOTHING_ALPHA`
+
+`_temporary_hybrid_override()` restores the original value afterward.
+
+### 20.6 Internal Re-Execution Logic
+
+`_run_all_simulations_and_evaluation()` performs:
+
+1. `run_simulation("rule")`
+2. `run_simulation("ml")`
+3. `run_simulation("hybrid")`
+4. `compute_metrics()`
+5. `run_tests()`
+
+The demand model is not retrained during validation.
+
+### 20.7 Ranking Logic
+
+Validation ranks strategies by:
+
+- `total_revenue` descending
+- `mean_absolute_change` ascending
+
+The ranking function uses deterministic sorting with a tie-break on strategy name.
+
+### 20.8 Parameter Variation Checks
+
+For each variation, the validation payload records:
+
+- `variation_name`
+- `parameter_name`
+- `parameter_value`
+- `run_succeeded`
+- `ml_highest_total_revenue`
+- `hybrid_lowest_mean_absolute_change`
+- `strategy_order_by_total_revenue`
+- `strategy_order_by_mean_absolute_change`
+- `error_message`
+
+### 20.9 Rerun Consistency Check
+
+The rerun consistency check:
+
+- reruns all simulations
+- reruns evaluation
+- compares regenerated summary metrics against baseline
+
+It records, for each strategy and each tracked metric:
+
+- `strategy_name`
+- `metric_name`
+- `baseline_value`
+- `rerun_value`
+- `absolute_difference`
+- `within_tolerance`
+
+The tracked metrics are:
+
+- `total_revenue`
+- `mean_absolute_change`
+
+The tolerance is:
+
+- `1e-6`
+
+### 20.10 Validation Summary Schema
+
+The top-level validation JSON contains:
+
+- `overall_passed`
+- `baseline_summary`
+- `parameter_variations`
+- `rerun_consistency`
+
+### 20.11 Validation Rules
+
+`validate_validation_summary()` checks:
+
+- exact top-level keys
+- `overall_passed` is boolean
+- baseline summary is a valid evaluation summary
+- `parameter_variations` length matches configured variations
+- each variation payload matches the configured parameter and expected keys
+- ranking lists are permutations of the strategy set when present
+- rerun consistency keys are exact
+- rerun metric tolerance equals the configured tolerance
+- rerun checks have the expected count
+- rerun checks cover every expected `(strategy_name, metric_name)` pair
+
+### 20.12 Current Frozen Validation Result
+
+From `results/validation/validation_summary.json`:
+
+- `overall_passed = true`
+
+Current parameter-variation outcomes:
+
+| Variation | Parameter | Value | Run succeeded | ML highest revenue | Hybrid lowest mean abs change |
+| --- | --- | ---: | --- | --- | --- |
+| `max_daily_change_0.01` | `MAX_DAILY_CHANGE` | 0.01 | `true` | `true` | `true` |
+| `hybrid_smoothing_alpha_0.7` | `HYBRID_SMOOTHING_ALPHA` | 0.7 | `true` | `true` | `true` |
+
+Current ranking outputs under both variations are:
+
+- revenue ranking: `ml > rule > hybrid`
+- stability ranking by mean absolute change: `hybrid < rule < ml`
+
+Current rerun consistency result:
+
+- `run_succeeded = true`
+- `all_within_tolerance = true`
+- `metric_tolerance = 1e-6`
+
+All six tracked checks are exactly equal to baseline within tolerance:
+
+| Strategy | Metric | Baseline | Rerun | Absolute difference | Within tolerance |
+| --- | --- | ---: | ---: | ---: | --- |
+| `rule` | `total_revenue` | 384707.66064544633 | 384707.66064544633 | 0.0 | `true` |
+| `rule` | `mean_absolute_change` | 1.127264443365309 | 1.127264443365309 | 0.0 | `true` |
+| `ml` | `total_revenue` | 393990.38449901843 | 393990.38449901843 | 0.0 | `true` |
+| `ml` | `mean_absolute_change` | 1.1387687130798765 | 1.1387687130798765 | 0.0 | `true` |
+| `hybrid` | `total_revenue` | 378588.42467631155 | 378588.42467631155 | 0.0 | `true` |
+| `hybrid` | `mean_absolute_change` | 0.7599901254026927 | 0.7599901254026927 | 0.0 | `true` |
+
+### 20.13 Validation Log Summary
+
+From `logs/validation.log`, the current successful validation run on `2026-04-05` performed:
+
+- two parameter-variation reruns
+- one rerun consistency check
+- three full cycles of all simulations plus evaluation inside validation
+
+The logged ranking summaries match the frozen validation summary artifact.
+
+## 21. Exact Frozen Schemas and Contracts
+
+This section consolidates the exact schemas enforced across the project.
+
+### 21.1 Cleaned Transactions
+
+```text
+invoice
+stock_code
+description
+quantity
+invoice_date
+price
+customer_id
+country
+```
+
+### 21.2 Selected Products
+
+```text
+stock_code
+description
+revenue
+price_std
+active_days
+```
+
+### 21.3 Daily Aggregation
+
+```text
+stock_code
+invoice_day
+daily_units
+avg_daily_price
+daily_revenue
+```
+
+### 21.4 Feature Data
+
+```text
+stock_code
+invoice_day
+daily_units
+avg_daily_price
+daily_revenue
+lag1_units
+lag7_units
+rolling7_mean_units
+weekday
+month
+weekday_0
+weekday_1
+weekday_2
+weekday_3
+weekday_4
+weekday_5
+weekday_6
+month_1
+month_2
+month_3
+month_4
+month_5
+month_6
+month_7
+month_8
+month_9
+month_10
+month_11
+month_12
+```
+
+### 21.5 Model Feature Columns
+
+```text
+lag1_units
+lag7_units
+rolling7_mean_units
+avg_daily_price
+weekday_0
+weekday_1
+weekday_2
+weekday_3
+weekday_4
+weekday_5
+weekday_6
+month_1
+month_2
+month_3
+month_4
+month_5
+month_6
+month_7
+month_8
+month_9
+month_10
+month_11
+month_12
+```
+
+### 21.6 Simulation Candidates
+
+```text
+invoice_day
+stock_code
+candidate_price
+predicted_demand
+predicted_revenue
+candidate_rank_by_revenue
+```
+
+### 21.7 Simulation Results
+
+```text
+invoice_day
+stock_code
+base_price
+previous_price
+chosen_price
+price_change
+abs_price_change
+predicted_demand
+predicted_revenue
+strategy_name
+```
+
+### 21.8 Evaluation Metrics
+
+```text
+stock_code
+strategy
+metric_level
+total_revenue
+mean_daily_revenue
+mean_absolute_change
+price_std
+max_price_jump
+change_frequency
+```
+
+### 21.9 Evaluation Summary JSON Metric Keys
+
+```text
+total_revenue
+mean_daily_revenue
+mean_absolute_change
+price_std
+max_price_jump
+change_frequency
+```
+
+### 21.10 Evaluation Tests JSON Scalar Keys
+
+```text
+statistic
+p_value
+sample_size
+```
+
+### 21.11 Validation Summary Top-Level Keys
+
+```text
+overall_passed
+baseline_summary
+parameter_variations
+rerun_consistency
+```
+
+## 22. Frozen Artifact Inventory
+
+### 22.1 Processed Data Artifacts
+
+- `data/processed/clean_transactions.parquet`
+- `data/processed/selected_products.parquet`
+- `data/processed/daily_product_data.parquet`
+- `data/processed/feature_train_data.parquet`
+- `data/processed/feature_test_data.parquet`
+
+### 22.2 Model Artifacts
+
+- `models/artifacts/demand_model.joblib`
+- `results/metrics/demand_model_metrics.json`
+
+### 22.3 Simulation Artifacts
+
+- `results/simulation/rule_candidates.parquet`
+- `results/simulation/rule_results.parquet`
+- `results/simulation/ml_candidates.parquet`
+- `results/simulation/ml_results.parquet`
+- `results/simulation/hybrid_candidates.parquet`
+- `results/simulation/hybrid_results.parquet`
+
+### 22.4 Evaluation Artifacts
+
+- `results/metrics/strategy_metrics.parquet`
+- `results/metrics/strategy_summary.json`
+- `results/metrics/statistical_tests.json`
+
+### 22.5 Validation Artifact
+
+- `results/validation/validation_summary.json`
+
+### 22.6 Reporting and Audit Artifacts
+
+- `results/reports/raw_inspection_report.json`
+- `results/reports/product_selection_report.json`
+- `logs/inspection.log`
+- `logs/cleaning.log`
+- `logs/product_selection.log`
+- `logs/aggregation.log`
+- `logs/feature_engineering.log`
+- `logs/model_training.log`
+- `logs/simulation.log`
+- `logs/evaluation.log`
+- `logs/dashboard.log`
+- `logs/validation.log`
+- `logs/experiment.log`
+
+## 23. Current Verified Run Status
+
+Based on the current logs and artifacts, the main frozen outputs were generated on `2026-04-05`.
+
+Key visible timestamps include:
+
+- build-stage logs on `2026-04-05`
+- simulation log on `2026-04-05 13:19`
+- evaluation log on `2026-04-05 13:19`
+- validation log on `2026-04-05 13:20`
+
+The current artifacts therefore represent a coherent frozen run state from `2026-04-05`.
+
+## 24. Dissertation-Ready Interpretation
+
+The current implementation supports the following evidence-backed narrative:
+
+- The repository implements a staged, reproducible pricing experiment rather than a monolithic script.
+- All downstream steps rely on frozen machine-readable artifacts and exact schema validators.
+- The data-processing pipeline narrows the raw transactional dataset to a UK-only, five-product analytical universe.
+- The demand model is fixed to a single linear regression baseline trained on lag, price, and calendar features.
+- All strategy comparisons occur within the same simulator, using the same test rows and the same candidate price sets.
+- Under the current frozen outputs, the ML strategy achieves the highest simulated revenue.
+- Under the current frozen outputs, the hybrid strategy achieves the lowest average magnitude of price changes and the lowest price dispersion among the three strategies.
+- The rule-based strategy sits between ML and hybrid in revenue, while remaining relatively unstable in pricing compared with the hybrid strategy.
+- Statistical testing strongly supports hybrid-versus-ML differences and strongly supports hybrid-versus-rule stability differences.
+- Reproducibility validation shows that the main ranking pattern remains stable under selected hybrid-parameter perturbations and exact reruns.
+
+## 25. Important Methodological and Technical Boundaries
+
+The dissertation should also state the implementation boundaries clearly:
+
+- Only one dataset slice is used.
+- Only one country is analyzed.
+- Only five products are included.
+- All pricing outcomes are simulated from predicted demand rather than measured from a live intervention.
+- The demand model is weak in predictive terms and should be framed as a fixed comparative baseline rather than a forecasting contribution.
+- The validation stage is a reproducibility and ranking-stability check, not a complete software assurance framework.
+- No multiple-testing correction is implemented in the current statistical testing code.
+- No causal demand estimation, counterfactual experimental design, or live A/B deployment is implemented.
+
+## 26. Most Useful Supporting Files for Dissertation Writing
+
+For dissertation drafting, the most useful sources in this repository are:
+
+- `implementation.md`
+- `results/reports/raw_inspection_report.json`
+- `results/reports/product_selection_report.json`
+- `results/metrics/demand_model_metrics.json`
+- `results/metrics/strategy_summary.json`
+- `results/metrics/statistical_tests.json`
+- `results/validation/validation_summary.json`
+
+In summary, the current implementation is sufficiently complete and sufficiently instrumented to support a dissertation methods chapter, implementation appendix, results chapter, and reproducibility appendix, provided the forecasting limitations and simulation boundaries are reported transparently.
