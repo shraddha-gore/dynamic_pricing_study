@@ -368,6 +368,19 @@ The current pairing keys are:
 The dashboard uses:
 
 - the six summary metrics
+- the primary dissertation metrics:
+  - `total_revenue`
+  - `mean_absolute_change`
+- the supporting dashboard metrics:
+  - `mean_daily_revenue`
+  - `price_std`
+  - `max_price_jump`
+  - `change_frequency`
+- the supporting stability metrics:
+  - `price_std`
+  - `max_price_jump`
+  - `change_frequency`
+- section-title constants for the six dashboard sections
 - product-level metric columns
 - a significance threshold of `0.05`
 - label maps for test names and statistical sections
@@ -1806,28 +1819,33 @@ This is an important design choice. The dashboard validates the full artifact co
 
 The dashboard currently renders:
 
-1. Strategy KPI Summary
-2. Revenue Comparison
-3. Pricing Stability Comparison
-4. Product-Level Strategy Comparison
-5. Product-Level Distribution Analysis
-6. Statistical Test Results
+1. Overall Strategy Performance Comparison
+2. Revenue Performance Analysis
+3. Pricing Stability Analysis
+4. Statistical Significance Tests
+5. Supporting Product-Level Comparison
+6. Supporting Distribution Analysis
 
 ### 19.8 KPI Summary Section
 
-Uses summary metrics:
+Uses the shared summary metrics, but visually prioritises the dissertation headline metrics:
 
-- `total_revenue`
-- `mean_daily_revenue`
-- `mean_absolute_change`
-- `price_std`
-- `max_price_jump`
-- `change_frequency`
+- primary:
+  - `total_revenue`
+  - `mean_absolute_change`
+- supporting:
+  - `mean_daily_revenue`
+  - `price_std`
+  - `max_price_jump`
+  - `change_frequency`
 
-It renders:
+It also computes simple strategy rankings from the already-loaded summary payload to present a concise headline trade-off statement.
 
-- a KPI column per strategy
-- a tabular view of the summary metrics
+The section renders:
+
+- a KPI column per strategy containing only the two primary metrics
+- a supporting metrics table for the remaining four measures
+- short interpretation text framing revenue versus stability
 
 ### 19.9 Revenue and Stability Charts
 
@@ -1836,12 +1854,16 @@ Revenue section renders bar charts for:
 - `total_revenue`
 - `mean_daily_revenue`
 
+The interpretation text explicitly treats `total_revenue` as the main revenue outcome and `mean_daily_revenue` as a secondary contextual measure.
+
 Stability section renders bar charts for:
 
 - `mean_absolute_change`
 - `price_std`
 - `max_price_jump`
 - `change_frequency`
+
+The stability layout gives `mean_absolute_change` full-width emphasis first, followed by the three supporting stability measures in secondary positions.
 
 ### 19.10 Product-Level Comparison
 
@@ -1851,12 +1873,16 @@ The dashboard provides:
 - a faceted bar chart over the product comparison metrics
 - a tabular per-strategy comparison for the selected stock code
 
+This section is explicitly labelled as supporting evidence for discussion and appendix use rather than a primary result section.
+
 ### 19.11 Distribution Analysis
 
 The dashboard renders boxplots for:
 
 - product-level `mean_daily_revenue`
 - product-level `mean_absolute_change`
+
+This section is also positioned as supporting evidence rather than a headline findings view.
 
 ### 19.12 Statistical Tests Section
 
@@ -1873,6 +1899,13 @@ The nested JSON statistical results are flattened into a dataframe with columns:
 Significance is defined as:
 
 - `p_value < 0.05`
+
+The rendered dashboard additionally:
+
+- places the statistical section before the supporting product/distribution sections
+- states that results are interpreted at `alpha = 0.05`
+- lists significant findings explicitly above the full table
+- adds a `Conclusion` column with `Significant` or `Not significant`
 
 ## 20. Validation and Reproducibility Implementation
 

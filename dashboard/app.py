@@ -13,18 +13,22 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 
 from config import (
     COL_STOCK_CODE,
-    SIMULATION_STRATEGIES,
+    DASHBOARD_PRIMARY_METRICS,
     EVALUATION_PRODUCT_METRIC_LEVEL,
     EVALUATION_STATISTICAL_TESTS_PATH,
     EVALUATION_STRATEGY_METRICS_PATH,
     EVALUATION_STRATEGY_SUMMARY_PATH,
     DASHBOARD_PRODUCT_COMPARISON_METRICS,
     DASHBOARD_PRODUCT_METRIC_COLUMNS,
+    DASHBOARD_SECTION_TITLES,
     DASHBOARD_SIGNIFICANCE_THRESHOLD,
+    DASHBOARD_STABILITY_SUPPORTING_METRICS,
     DASHBOARD_STATISTICAL_TEST_LABELS,
+    DASHBOARD_SUPPORTING_METRICS,
     DASHBOARD_SUMMARY_METRICS,
     DASHBOARD_TEST_LABELS,
     PROJECT_ROOT,
+    SIMULATION_STRATEGIES,
 )
 from pipeline.execution import DASHBOARD_COMMAND, command_logging_targets
 from preprocessing.common import configured_path
@@ -110,20 +114,67 @@ def _summary_frame(summary_payload: dict[str, dict[str, float]]) -> pd.DataFrame
     return summary_df[["strategy", *DASHBOARD_SUMMARY_METRICS]]
 
 
+def _strategy_for_metric(summary_df: pd.DataFrame, metric_name: str, *, ascending: bool) -> str:
+    ranked_df = summary_df.sort_values(metric_name, ascending=ascending, kind="mergesort").reset_index(drop=True)
+    return str(ranked_df.iloc[0]["strategy"])
+
+
+def _metric_rankings(summary_df: pd.DataFrame, metric_name: str, *, ascending: bool) -> list[str]:
+    ranked_df = summary_df.sort_values(metric_name, ascending=ascending, kind="mergesort").reset_index(drop=True)
+    return ranked_df["strategy"].astype(str).tolist()
+
+
+def _render_primary_findings(summary_df: pd.DataFrame) -> None:
+    revenue_ranking = _metric_rankings(summary_df, "total_revenue", ascending=False)
+    stability_ranking = _metric_rankings(summary_df, "mean_absolute_change", ascending=True)
+
+    st.markdown(
+        (
+            f"Primary result: **{revenue_ranking[0].upper()}** delivers the highest total revenue, while "
+            f"**{stability_ranking[0].upper()}** delivers the lowest mean absolute change under the shared simulation setting."
+        )
+    )
+    st.caption(
+        (
+            f"This frames the core trade-off directly: revenue ranking is "
+            f"{' > '.join(strategy.upper() for strategy in revenue_ranking)}, while stability ranking is "
+            f"{' < '.join(strategy.upper() for strategy in stability_ranking)}."
+        )
+    )
+
+
 def _render_kpi_summary(summary_df: pd.DataFrame) -> None:
-    st.subheader("Section 1 - Strategy KPI Summary")
+    st.subheader(DASHBOARD_SECTION_TITLES["summary"])
+    st.caption(
+        "Primary metrics answer the research question directly. Supporting metrics remain available for interpretation only."
+    )
+    _render_primary_findings(summary_df)
+
     strategies = summary_df["strategy"].tolist()
     columns = st.columns(len(strategies))
+    revenue_leader = _strategy_for_metric(summary_df, "total_revenue", ascending=False)
+    stability_leader = _strategy_for_metric(summary_df, "mean_absolute_change", ascending=True)
 
     for column, strategy_name in zip(columns, strategies, strict=False):
         strategy_row = summary_df.loc[summary_df["strategy"] == strategy_name].iloc[0]
         with column:
             st.markdown(f"**{strategy_name.upper()}**")
-            for metric_name in DASHBOARD_SUMMARY_METRICS:
+            highlights: list[str] = []
+            if strategy_name == revenue_leader:
+                highlights.append("Highest revenue")
+            if strategy_name == stability_leader:
+                highlights.append("Lowest mean absolute change")
+            if highlights:
+                st.caption(" | ".join(highlights))
+            else:
+                st.caption("Supporting comparator")
+            for metric_name in DASHBOARD_PRIMARY_METRICS:
                 st.metric(_format_metric_label(metric_name), _format_number(float(strategy_row[metric_name])))
 
+    st.markdown("**Supporting Metrics**")
     display_df = summary_df.copy()
-    for metric_name in DASHBOARD_SUMMARY_METRICS:
+    display_df = display_df[["strategy", *DASHBOARD_SUPPORTING_METRICS]]
+    for metric_name in DASHBOARD_SUPPORTING_METRICS:
         display_df[metric_name] = display_df[metric_name].map(lambda value: round(float(value), 6))
     st.dataframe(display_df, width="stretch", hide_index=True)
 
@@ -146,8 +197,16 @@ def _bar_chart(dataframe: pd.DataFrame, metric_name: str, title: str) -> alt.Cha
 
 
 def _render_revenue_comparison(summary_df: pd.DataFrame) -> None:
-    st.subheader("Section 2 - Revenue Comparison")
-    left_column, right_column = st.columns(2)
+    st.subheader(DASHBOARD_SECTION_TITLES["revenue"])
+    revenue_ranking = _metric_rankings(summary_df, "total_revenue", ascending=False)
+    st.markdown(
+        f"Interpretation: **{revenue_ranking[0].upper()}** achieves the highest total revenue under the shared simulated demand conditions."
+    )
+    st.caption(
+        f"Mean daily revenue is shown as a secondary measure to support interpretation rather than drive the main conclusion."
+    )
+
+    left_column, right_column = st.columns([1.35, 1.0])
     with left_column:
         st.altair_chart(
             _bar_chart(summary_df, "total_revenue", "Total Revenue by Strategy"),
@@ -161,17 +220,39 @@ def _render_revenue_comparison(summary_df: pd.DataFrame) -> None:
 
 
 def _render_stability_comparison(summary_df: pd.DataFrame) -> None:
-    st.subheader("Section 3 - Pricing Stability Comparison")
-    chart_columns = st.columns(2)
+    st.subheader(DASHBOARD_SECTION_TITLES["stability"])
+    stability_leader = _strategy_for_metric(summary_df, "mean_absolute_change", ascending=True)
+    supporting_metric_leaders = {
+        metric_name: _strategy_for_metric(summary_df, metric_name, ascending=True)
+        for metric_name in DASHBOARD_STABILITY_SUPPORTING_METRICS
+    }
+    supporting_alignment = all(strategy_name == stability_leader for strategy_name in supporting_metric_leaders.values())
+    if supporting_alignment:
+        st.markdown(
+            f"Interpretation: **{stability_leader.upper()}** demonstrates the lowest price volatility across the primary and supporting stability measures."
+        )
+    else:
+        st.markdown(
+            f"Interpretation: **{stability_leader.upper()}** delivers the lowest mean absolute change, with supporting stability metrics used to explain the broader behaviour."
+        )
+    st.caption(
+        "Mean absolute change is the primary stability metric. The other three measures support interpretation rather than serve as headline results."
+    )
+
+    st.altair_chart(
+        _bar_chart(summary_df, "mean_absolute_change", "Mean Absolute Change by Strategy"),
+        width="stretch",
+    )
+
+    chart_columns = st.columns(3)
     stability_metrics = [
-        ("mean_absolute_change", "Mean Absolute Change"),
         ("price_std", "Price Standard Deviation"),
         ("max_price_jump", "Maximum Price Jump"),
         ("change_frequency", "Change Frequency"),
     ]
 
-    for index, (metric_name, chart_title) in enumerate(stability_metrics):
-        with chart_columns[index % 2]:
+    for column, (metric_name, chart_title) in zip(chart_columns, stability_metrics, strict=False):
+        with column:
             st.altair_chart(
                 _bar_chart(summary_df, metric_name, f"{chart_title} by Strategy"),
                 width="stretch",
@@ -194,7 +275,8 @@ def _product_metric_long_frame(product_metrics_df: pd.DataFrame, stock_code: str
 
 
 def _render_product_level_comparison(product_metrics_df: pd.DataFrame) -> None:
-    st.subheader("Section 4 - Product-Level Strategy Comparison")
+    st.subheader(DASHBOARD_SECTION_TITLES["product_comparison"])
+    st.caption("Supporting evidence for discussion and appendix material rather than the primary conclusion.")
     stock_codes = sorted(product_metrics_df[COL_STOCK_CODE].unique().tolist())
     default_stock_code = sorted(stock_codes)[0]
     selected_stock_code = st.selectbox(
@@ -251,7 +333,8 @@ def _boxplot(dataframe: pd.DataFrame, metric_name: str, title: str) -> alt.Chart
 
 
 def _render_distribution_analysis(product_metrics_df: pd.DataFrame) -> None:
-    st.subheader("Section 5 - Product-Level Distribution Analysis")
+    st.subheader(DASHBOARD_SECTION_TITLES["distribution"])
+    st.caption("Distribution plots provide supporting context for product-level variation across strategies.")
     left_column, right_column = st.columns(2)
     with left_column:
         st.altair_chart(
@@ -290,12 +373,62 @@ def _statistical_results_frame(
 
 
 def _render_statistical_tests(statistical_payload: dict[str, dict[str, dict[str, dict[str, float]]]]) -> None:
-    st.subheader("Section 6 - Statistical Test Results")
+    st.subheader(DASHBOARD_SECTION_TITLES["statistical_tests"])
+    st.caption("Results are interpreted at alpha = 0.05 using both paired t-tests and Wilcoxon signed-rank tests.")
     results_df = _statistical_results_frame(statistical_payload)
+    significant_df = results_df.loc[results_df["Significant"]].reset_index(drop=True)
+    mixed_df = results_df.loc[~results_df["Significant"]].reset_index(drop=True)
+
+    if not significant_df.empty and mixed_df.empty:
+        st.markdown("Interpretation: all reported pairwise results are statistically significant at alpha = 0.05.")
+    elif not significant_df.empty:
+        stability_all_significant = bool(
+            results_df.loc[results_df["Metric"] == "abs_price_change", "Significant"].all()
+        )
+        revenue_mixed = bool(
+            (~results_df.loc[results_df["Metric"] == "predicted_revenue", "Significant"]).any()
+        )
+        interpretation_parts = []
+        if stability_all_significant:
+            interpretation_parts.append("stability differences involving the hybrid strategy are significant across both tests")
+        if revenue_mixed:
+            interpretation_parts.append("revenue evidence is mixed for the hybrid versus rule comparison")
+        if interpretation_parts:
+            st.markdown(f"Interpretation: {'; '.join(interpretation_parts)}.")
+
+    if not significant_df.empty:
+        st.markdown("**Significant results**")
+        for _, row in significant_df.iterrows():
+            metric_label = "Revenue" if row["Metric"] == "predicted_revenue" else "Mean Absolute Change"
+            st.markdown(
+                (
+                    f"- {metric_label}: {row['Comparison']} ({row['Test']}, p = {float(row['p-value']):.6g})"
+                )
+            )
 
     display_df = results_df.copy()
+    display_df["Metric"] = display_df["Metric"].map(
+        {
+            "predicted_revenue": "Revenue",
+            "abs_price_change": "Mean Absolute Change",
+        }
+    )
     display_df["Statistic"] = display_df["Statistic"].map(lambda value: round(float(value), 6))
     display_df["p-value"] = display_df["p-value"].map(lambda value: f"{float(value):.6g}")
+    display_df["Conclusion"] = display_df["Significant"].map(
+        lambda is_significant: "Significant" if bool(is_significant) else "Not significant"
+    )
+    display_df["_significance_order"] = display_df["Conclusion"].map(
+        {"Significant": 0, "Not significant": 1}
+    )
+    display_df = display_df.sort_values(
+        ["_significance_order", "Metric", "Comparison", "Test"],
+        ascending=[True, True, True, True],
+        kind="mergesort",
+    ).reset_index(drop=True)
+    display_df = display_df[
+        ["Metric", "Comparison", "Test", "Statistic", "p-value", "Sample Size", "Conclusion"]
+    ]
     st.dataframe(display_df, width="stretch", hide_index=True)
 
 
@@ -324,9 +457,9 @@ def main() -> None:
     _render_kpi_summary(summary_df)
     _render_revenue_comparison(summary_df)
     _render_stability_comparison(summary_df)
+    _render_statistical_tests(statistical_payload)
     _render_product_level_comparison(product_metrics_df)
     _render_distribution_analysis(product_metrics_df)
-    _render_statistical_tests(statistical_payload)
 
 
 if __name__ == "__main__":

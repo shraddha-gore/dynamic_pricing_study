@@ -327,6 +327,26 @@ DASHBOARD_SUMMARY_METRICS = (
     "max_price_jump",
     "change_frequency",
 )
+DASHBOARD_PRIMARY_METRICS = (
+    "total_revenue",
+    "mean_absolute_change",
+)
+DASHBOARD_SUPPORTING_METRICS = tuple(
+    metric_name for metric_name in DASHBOARD_SUMMARY_METRICS if metric_name not in DASHBOARD_PRIMARY_METRICS
+)
+DASHBOARD_STABILITY_SUPPORTING_METRICS = (
+    "price_std",
+    "max_price_jump",
+    "change_frequency",
+)
+DASHBOARD_SECTION_TITLES = {
+    "summary": "Section 1 - Overall Strategy Performance Comparison",
+    "revenue": "Section 2 - Revenue Performance Analysis",
+    "stability": "Section 3 - Pricing Stability Analysis",
+    "statistical_tests": "Section 4 - Statistical Significance Tests",
+    "product_comparison": "Section 5 - Supporting Product-Level Comparison",
+    "distribution": "Section 6 - Supporting Distribution Analysis",
+}
 DASHBOARD_PRODUCT_METRIC_COLUMNS = [
     COL_STOCK_CODE,
     "strategy",
