@@ -51,7 +51,7 @@ This CSV is treated as the immutable raw input.
 
 ### 2.3 Provenance Rules
 
-The implemented provenance assumptions are that the Excel-to-CSV conversion:
+The implementation treats the CSV as the raw system boundary. The following provenance assumptions are external to the codebase and are not programmatically verified:
 
 - preserved the original worksheet column names
 - did not remove rows
@@ -78,13 +78,15 @@ These restrictions are reflected in `config.py`, the preprocessing steps, and th
 
 ### 3.1 Runtime Assumptions
 
-The repository assumes a local Python virtual environment named `venv`. The command pattern used by the implementation is:
+The codebase itself does not hard-code a specific environment manager or virtual-environment name. The implementation requires a Python environment that can import the pinned dependencies in `requirements.txt`.
+
+If a virtual environment is used, one valid activation pattern is:
 
 ```bash
 source venv/bin/activate
 ```
 
-The current workspace also shows that the system `python` command is not available globally, while `venv/bin/python` is available. Practically, the implementation should therefore be run inside the virtual environment.
+The exact interpreter invocation (`python`, `python3`, or a virtual-environment-local path) depends on the local environment rather than on repository logic.
 
 ### 3.2 Primary Libraries
 
@@ -870,6 +872,8 @@ The step:
 - computes `revenue_line = quantity * price`
 - groups by `(stock_code, invoice_day)`
 
+No calendar completion or zero-filling is performed for missing dates. The aggregated dataset therefore contains only product-day combinations that are present in the cleaned transactional data.
+
 The grouped outputs are:
 
 - `daily_units = sum(quantity)`
@@ -967,10 +971,10 @@ Within each `stock_code` group:
 
 - `lag1_units` is `daily_units.shift(1)`
 - `lag7_units` is `daily_units.shift(7)`
-- `rolling7_mean_units` is the mean of the previous 7 days excluding the current day, implemented as:
+- `rolling7_mean_units` is the mean of the previous 7 retained observations in that product's aggregated series, excluding the current row, implemented as:
   - `grouped_units.shift(1).rolling(window=7, min_periods=7).mean()`
 
-This means each retained modeled row requires enough prior history to populate all three lag-related fields.
+Because the daily aggregation step does not insert missing calendar dates, these lag and rolling features operate over prior observed product-day rows rather than over a gap-filled daily calendar. Each retained modeled row therefore requires enough prior observed rows to populate all three lag-related fields.
 
 ### 13.5 Calendar Features
 
