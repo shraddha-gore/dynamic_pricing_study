@@ -13,3 +13,4 @@ models/artifacts/
 .ipynb_checkpoints/
 .vscode/
 .idea/
+.codex

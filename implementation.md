@@ -157,7 +157,9 @@ The dispatch order in `main.py` is:
 
 This precedence matters only if conflicting flags were ever passed simultaneously. Under normal usage, commands are expected to be explicit and non-conflicting.
 
-### 5.3 Pipeline Naming in `pipeline/execution.py`
+### 5.3 Execution Naming in `config.py` and `pipeline/execution.py`
+
+The current execution names are defined in `config.py` and exposed through helper accessors in `pipeline/execution.py`.
 
 The current execution names are:
 
@@ -382,10 +384,11 @@ The dashboard uses:
   - `price_std`
   - `max_price_jump`
   - `change_frequency`
-- section-title constants for the six dashboard sections
+- section-title constants for the five dashboard sections
 - product-level metric columns
 - a significance threshold of `0.05`
 - label maps for test names and statistical sections
+- dashboard highlight colors and table-cell style strings used for visual emphasis
 
 ### 6.16 Validation Constants
 
@@ -1828,7 +1831,6 @@ The dashboard currently renders:
 3. Pricing Stability Analysis
 4. Statistical Significance Tests
 5. Supporting Product-Level Comparison
-6. Supporting Distribution Analysis
 
 ### 19.8 KPI Summary Section
 
@@ -1847,9 +1849,16 @@ It also computes simple strategy rankings from the already-loaded summary payloa
 
 The section renders:
 
+- a short "how to read this dashboard" note near the page title explaining that Sections 1-4 are core findings and the later section is supporting evidence
+- headline interpretation text
+- an explicit research-answer sentence
+- a one-line key takeaway about the trade-off between revenue optimisation and pricing stability
+- a bordered strategy-ranking summary box with:
+  - `Revenue -> ML`
+  - `Stability -> HYBRID`
 - a KPI column per strategy containing only the two primary metrics
 - a supporting metrics table for the remaining four measures
-- short interpretation text framing revenue versus stability
+- visual winner emphasis so the revenue leader and stability leader are easy to identify
 
 ### 19.9 Revenue and Stability Charts
 
@@ -1867,26 +1876,17 @@ Stability section renders bar charts for:
 - `max_price_jump`
 - `change_frequency`
 
-The stability layout gives `mean_absolute_change` full-width emphasis first, followed by the three supporting stability measures in secondary positions.
+The stability layout gives `mean_absolute_change` full-width emphasis first, followed by three additional full-width supporting charts so the visual layout remains readable on smaller screens.
 
 ### 19.10 Product-Level Comparison
 
 The dashboard provides:
 
 - a `stock_code` select box
-- a faceted bar chart over the product comparison metrics
+- one full-width bar chart per product comparison metric
 - a tabular per-strategy comparison for the selected stock code
 
 This section is explicitly labelled as supporting evidence for discussion and appendix use rather than a primary result section.
-
-### 19.11 Distribution Analysis
-
-The dashboard renders boxplots for:
-
-- product-level `mean_daily_revenue`
-- product-level `mean_absolute_change`
-
-This section is also positioned as supporting evidence rather than a headline findings view.
 
 ### 19.12 Statistical Tests Section
 
@@ -1906,10 +1906,11 @@ Significance is defined as:
 
 The rendered dashboard additionally:
 
-- places the statistical section before the supporting product/distribution sections
+- places the statistical section before the supporting product-level section
 - states that results are interpreted at `alpha = 0.05`
 - lists significant findings explicitly above the full table
 - adds a `Conclusion` column with `Significant` or `Not significant`
+- visually highlights the `Conclusion` outcomes so significant and non-significant results are immediately distinguishable
 
 ## 20. Validation and Reproducibility Implementation
 
@@ -2084,7 +2085,7 @@ All six tracked checks are exactly equal to baseline within tolerance:
 
 ### 20.13 Validation Log Summary
 
-From `logs/validation.log`, the current successful validation run on `2026-04-05` performed:
+From `logs/validation.log`, the current successful validation run on `2026-04-09` performed:
 
 - two parameter-variation reruns
 - one rerun consistency check
@@ -2311,16 +2312,16 @@ rerun_consistency
 
 ## 23. Current Verified Run Status
 
-Based on the current logs and artifacts, the main frozen outputs were generated on `2026-04-05`.
+Based on the current logs and artifacts, the main frozen outputs were generated on `2026-04-09`.
 
 Key visible timestamps include:
 
-- build-stage logs on `2026-04-05`
-- simulation log on `2026-04-05 13:19`
-- evaluation log on `2026-04-05 13:19`
-- validation log on `2026-04-05 13:20`
+- build-stage logs on `2026-04-09`
+- simulation log on `2026-04-09 08:50`
+- evaluation log on `2026-04-09 08:50`
+- validation log on `2026-04-09 08:50`
 
-The current artifacts therefore represent a coherent frozen run state from `2026-04-05`.
+The current artifacts therefore represent a coherent frozen run state from `2026-04-09`.
 
 ## 24. Dissertation-Ready Interpretation
 

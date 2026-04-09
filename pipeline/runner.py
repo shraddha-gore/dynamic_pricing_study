@@ -1,9 +1,6 @@
 from collections.abc import Callable
 
-from config import SIMULATION_STRATEGIES
-from evaluation.validation import run_validation
-from models.demand_model import run_demand_model_training
-from pipeline.execution import (
+from config import (
     AGGREGATE_DAILY_UNIT,
     BUILD_GROUP,
     CLEAN_UNIT,
@@ -11,10 +8,13 @@ from pipeline.execution import (
     FEATURE_ENGINEERING_UNIT,
     INSPECT_UNIT,
     SELECT_PRODUCTS_UNIT,
+    SIMULATION_STRATEGIES,
     TRAIN_MODEL_UNIT,
     VALIDATE_COMMAND,
-    group_units,
 )
+from evaluation.validation import run_validation
+from models.demand_model import run_demand_model_training
+from pipeline.execution import group_units
 from preprocessing.aggregate_daily import run_aggregate_daily
 from preprocessing.clean_data import run_clean_data
 from preprocessing.feature_engineering import run_feature_engineering

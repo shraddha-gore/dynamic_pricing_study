@@ -13,6 +13,11 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
 
 from config import (
     COL_STOCK_CODE,
+    DASHBOARD_COMMAND,
+    DASHBOARD_HIGHLIGHT_BAR_COLOR,
+    DASHBOARD_LEADER_CELL_STYLE,
+    DASHBOARD_MUTED_BAR_COLOR,
+    DASHBOARD_NONSIGNIFICANT_CELL_STYLE,
     DASHBOARD_PRIMARY_METRICS,
     EVALUATION_PRODUCT_METRIC_LEVEL,
     EVALUATION_STATISTICAL_TESTS_PATH,
@@ -22,6 +27,7 @@ from config import (
     DASHBOARD_PRODUCT_METRIC_COLUMNS,
     DASHBOARD_SECTION_TITLES,
     DASHBOARD_SIGNIFICANCE_THRESHOLD,
+    DASHBOARD_SIGNIFICANT_CELL_STYLE,
     DASHBOARD_STABILITY_SUPPORTING_METRICS,
     DASHBOARD_STATISTICAL_TEST_LABELS,
     DASHBOARD_SUPPORTING_METRICS,
@@ -30,7 +36,7 @@ from config import (
     PROJECT_ROOT,
     SIMULATION_STRATEGIES,
 )
-from pipeline.execution import DASHBOARD_COMMAND, command_logging_targets
+from pipeline.execution import command_logging_targets
 from preprocessing.common import configured_path
 from utils.data_contracts import validate_evaluation_metrics, validate_evaluation_summary, validate_evaluation_tests
 from utils.logging_config import configure_logging
@@ -44,6 +50,10 @@ def _format_metric_label(metric_name: str) -> str:
 
 def _format_number(value: float) -> str:
     return f"{value:,.6f}" if abs(value) < 10 else f"{value:,.3f}"
+
+
+def _metric_prefers_higher(metric_name: str) -> bool:
+    return metric_name in {"total_revenue", "mean_daily_revenue"}
 
 
 def _evaluation_input_paths() -> dict[str, str]:
@@ -134,12 +144,33 @@ def _render_primary_findings(summary_df: pd.DataFrame) -> None:
             f"**{stability_ranking[0].upper()}** delivers the lowest mean absolute change under the shared simulation setting."
         )
     )
+    st.markdown(
+        (
+            f"Research answer: **{revenue_ranking[0].upper()}** maximises revenue, while "
+            f"**{stability_ranking[0].upper()}** provides the most stable pricing, demonstrating a clear "
+            "trade-off between performance and stability."
+        )
+    )
     st.caption(
         (
             f"This frames the core trade-off directly: revenue ranking is "
             f"{' > '.join(strategy.upper() for strategy in revenue_ranking)}, while stability ranking is "
             f"{' < '.join(strategy.upper() for strategy in stability_ranking)}."
         )
+    )
+    st.markdown(
+        "Key takeaway: This demonstrates a trade-off: optimisation improves revenue, while constraints improve stability."
+    )
+
+
+def _strategy_ranking_summary_frame(summary_df: pd.DataFrame) -> pd.DataFrame:
+    revenue_leader = _strategy_for_metric(summary_df, "total_revenue", ascending=False)
+    stability_leader = _strategy_for_metric(summary_df, "mean_absolute_change", ascending=True)
+    return pd.DataFrame(
+        [
+            {"Dimension": "Revenue", "Best Strategy": str(revenue_leader).upper()},
+            {"Dimension": "Stability", "Best Strategy": str(stability_leader).upper()},
+        ]
     )
 
 
@@ -148,7 +179,16 @@ def _render_kpi_summary(summary_df: pd.DataFrame) -> None:
     st.caption(
         "Primary metrics answer the research question directly. Supporting metrics remain available for interpretation only."
     )
+    st.caption("Highlighted bars and cells mark the best-performing strategy for each metric.")
     _render_primary_findings(summary_df)
+    ranking_summary_df = _strategy_ranking_summary_frame(summary_df)
+    with st.container(border=True):
+        st.markdown("**Strategy Ranking Summary**")
+        st.dataframe(ranking_summary_df, width="stretch", hide_index=True)
+        st.markdown(
+            f"Revenue leader: **:green[{ranking_summary_df.iloc[0]['Best Strategy']}]** | "
+            f"Stability leader: **:blue[{ranking_summary_df.iloc[1]['Best Strategy']}]**"
+        )
 
     strategies = summary_df["strategy"].tolist()
     columns = st.columns(len(strategies))
@@ -159,13 +199,10 @@ def _render_kpi_summary(summary_df: pd.DataFrame) -> None:
         strategy_row = summary_df.loc[summary_df["strategy"] == strategy_name].iloc[0]
         with column:
             st.markdown(f"**{strategy_name.upper()}**")
-            highlights: list[str] = []
             if strategy_name == revenue_leader:
-                highlights.append("Highest revenue")
-            if strategy_name == stability_leader:
-                highlights.append("Lowest mean absolute change")
-            if highlights:
-                st.caption(" | ".join(highlights))
+                st.markdown("**:green[Highest revenue]**")
+            elif strategy_name == stability_leader:
+                st.markdown("**:blue[Lowest mean absolute change]**")
             else:
                 st.caption("Supporting comparator")
             for metric_name in DASHBOARD_PRIMARY_METRICS:
@@ -174,19 +211,33 @@ def _render_kpi_summary(summary_df: pd.DataFrame) -> None:
     st.markdown("**Supporting Metrics**")
     display_df = summary_df.copy()
     display_df = display_df[["strategy", *DASHBOARD_SUPPORTING_METRICS]]
-    for metric_name in DASHBOARD_SUPPORTING_METRICS:
-        display_df[metric_name] = display_df[metric_name].map(lambda value: round(float(value), 6))
-    st.dataframe(display_df, width="stretch", hide_index=True)
+    st.dataframe(
+        _styled_metric_table(display_df, DASHBOARD_SUPPORTING_METRICS),
+        width="stretch",
+        hide_index=True,
+    )
 
 
-def _bar_chart(dataframe: pd.DataFrame, metric_name: str, title: str) -> alt.Chart:
+def _bar_chart(
+    dataframe: pd.DataFrame,
+    metric_name: str,
+    title: str,
+    *,
+    highlighted_strategy: str | None = None,
+) -> alt.Chart:
+    chart_df = dataframe.copy()
+    chart_df["is_highlight"] = chart_df["strategy"].astype(str) == str(highlighted_strategy)
     return (
-        alt.Chart(dataframe)
+        alt.Chart(chart_df)
         .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
         .encode(
-            x=alt.X("strategy:N", title="Strategy", sort=dataframe["strategy"].tolist()),
+            x=alt.X("strategy:N", title="Strategy", sort=chart_df["strategy"].tolist()),
             y=alt.Y(f"{metric_name}:Q", title=_format_metric_label(metric_name)),
-            color=alt.Color("strategy:N", legend=None),
+            color=alt.condition(
+                "datum.is_highlight",
+                alt.value(DASHBOARD_HIGHLIGHT_BAR_COLOR),
+                alt.value(DASHBOARD_MUTED_BAR_COLOR),
+            ),
             tooltip=[
                 alt.Tooltip("strategy:N", title="Strategy"),
                 alt.Tooltip(f"{metric_name}:Q", title=_format_metric_label(metric_name), format=",.6f"),
@@ -196,27 +247,78 @@ def _bar_chart(dataframe: pd.DataFrame, metric_name: str, title: str) -> alt.Cha
     )
 
 
+def _metric_long_frame(dataframe: pd.DataFrame, id_vars: list[str], metric_names: list[str] | tuple[str, ...]) -> pd.DataFrame:
+    long_df = dataframe.melt(
+        id_vars=id_vars,
+        value_vars=list(metric_names),
+        var_name="metric",
+        value_name="value",
+    )
+    long_df["metric_label"] = pd.Categorical(
+        long_df["metric"].map(_format_metric_label),
+        categories=[_format_metric_label(metric_name) for metric_name in metric_names],
+        ordered=True,
+    )
+    return long_df
+
+
+def _mark_metric_leaders(long_df: pd.DataFrame) -> pd.DataFrame:
+    marked_df = long_df.copy()
+    marked_df["is_metric_leader"] = False
+    for metric_name, metric_slice in marked_df.groupby("metric", sort=False):
+        leader_value = metric_slice["value"].max() if _metric_prefers_higher(str(metric_name)) else metric_slice["value"].min()
+        marked_df.loc[metric_slice.index, "is_metric_leader"] = metric_slice["value"].eq(leader_value)
+    return marked_df
+
+
+def _styled_metric_table(dataframe: pd.DataFrame, metric_names: list[str] | tuple[str, ...]):
+    styles = pd.DataFrame("", index=dataframe.index, columns=dataframe.columns)
+    for metric_name in metric_names:
+        leader_value = (
+            dataframe[metric_name].max()
+            if _metric_prefers_higher(metric_name)
+            else dataframe[metric_name].min()
+        )
+        styles.loc[dataframe[metric_name].eq(leader_value), metric_name] = DASHBOARD_LEADER_CELL_STYLE
+    formatters = {metric_name: _format_number for metric_name in metric_names}
+    return dataframe.style.apply(lambda _: styles, axis=None).format(formatters)
+
+
+def _styled_statistical_results_table(dataframe: pd.DataFrame):
+    styles = pd.DataFrame("", index=dataframe.index, columns=dataframe.columns)
+    styles.loc[dataframe["Conclusion"] == "Significant", "Conclusion"] = DASHBOARD_SIGNIFICANT_CELL_STYLE
+    styles.loc[dataframe["Conclusion"] == "Not significant", "Conclusion"] = DASHBOARD_NONSIGNIFICANT_CELL_STYLE
+    return dataframe.style.apply(lambda _: styles, axis=None)
+
+
 def _render_revenue_comparison(summary_df: pd.DataFrame) -> None:
     st.subheader(DASHBOARD_SECTION_TITLES["revenue"])
     revenue_ranking = _metric_rankings(summary_df, "total_revenue", ascending=False)
+    mean_daily_revenue_leader = _strategy_for_metric(summary_df, "mean_daily_revenue", ascending=False)
     st.markdown(
         f"Interpretation: **{revenue_ranking[0].upper()}** achieves the highest total revenue under the shared simulated demand conditions."
     )
     st.caption(
         f"Mean daily revenue is shown as a secondary measure to support interpretation rather than drive the main conclusion."
     )
-
-    left_column, right_column = st.columns([1.35, 1.0])
-    with left_column:
-        st.altair_chart(
-            _bar_chart(summary_df, "total_revenue", "Total Revenue by Strategy"),
-            width="stretch",
-        )
-    with right_column:
-        st.altair_chart(
-            _bar_chart(summary_df, "mean_daily_revenue", "Mean Daily Revenue by Strategy"),
-            width="stretch",
-        )
+    st.altair_chart(
+        _bar_chart(
+            summary_df,
+            "total_revenue",
+            "Total Revenue by Strategy",
+            highlighted_strategy=revenue_ranking[0],
+        ),
+        width="stretch",
+    )
+    st.altair_chart(
+        _bar_chart(
+            summary_df,
+            "mean_daily_revenue",
+            "Mean Daily Revenue by Strategy",
+            highlighted_strategy=mean_daily_revenue_leader,
+        ),
+        width="stretch",
+    )
 
 
 def _render_stability_comparison(summary_df: pd.DataFrame) -> None:
@@ -240,23 +342,24 @@ def _render_stability_comparison(summary_df: pd.DataFrame) -> None:
     )
 
     st.altair_chart(
-        _bar_chart(summary_df, "mean_absolute_change", "Mean Absolute Change by Strategy"),
+        _bar_chart(
+            summary_df,
+            "mean_absolute_change",
+            "Mean Absolute Change by Strategy",
+            highlighted_strategy=stability_leader,
+        ),
         width="stretch",
     )
-
-    chart_columns = st.columns(3)
-    stability_metrics = [
-        ("price_std", "Price Standard Deviation"),
-        ("max_price_jump", "Maximum Price Jump"),
-        ("change_frequency", "Change Frequency"),
-    ]
-
-    for column, (metric_name, chart_title) in zip(chart_columns, stability_metrics, strict=False):
-        with column:
-            st.altair_chart(
-                _bar_chart(summary_df, metric_name, f"{chart_title} by Strategy"),
-                width="stretch",
-            )
+    for metric_name in DASHBOARD_STABILITY_SUPPORTING_METRICS:
+        st.altair_chart(
+            _bar_chart(
+                summary_df,
+                metric_name,
+                f"{_format_metric_label(metric_name)} by Strategy",
+                highlighted_strategy=_strategy_for_metric(summary_df, metric_name, ascending=True),
+            ),
+            width="stretch",
+        )
 
 
 def _product_metric_long_frame(product_metrics_df: pd.DataFrame, stock_code: str) -> pd.DataFrame:
@@ -264,14 +367,7 @@ def _product_metric_long_frame(product_metrics_df: pd.DataFrame, stock_code: str
     if selected_df.empty:
         raise ValueError(f"No product-level rows found for stock_code '{stock_code}'.")
 
-    long_df = selected_df.melt(
-        id_vars=[COL_STOCK_CODE, "strategy"],
-        value_vars=DASHBOARD_PRODUCT_COMPARISON_METRICS,
-        var_name="metric",
-        value_name="value",
-    )
-    long_df["metric_label"] = long_df["metric"].map(_format_metric_label)
-    return long_df
+    return selected_df.sort_values("strategy", kind="mergesort").reset_index(drop=True)
 
 
 def _render_product_level_comparison(product_metrics_df: pd.DataFrame) -> None:
@@ -285,67 +381,31 @@ def _render_product_level_comparison(product_metrics_df: pd.DataFrame) -> None:
         index=stock_codes.index(default_stock_code),
     )
 
-    comparison_long_df = _product_metric_long_frame(product_metrics_df, selected_stock_code)
-    chart = (
-        alt.Chart(comparison_long_df)
-        .mark_bar()
-        .encode(
-            x=alt.X("strategy:N", title="Strategy", sort=sorted(comparison_long_df["strategy"].unique().tolist())),
-            y=alt.Y("value:Q", title="Metric Value"),
-            color=alt.Color("strategy:N", legend=None),
-            column=alt.Column("metric_label:N", title=None, spacing=12),
-            tooltip=[
-                alt.Tooltip(f"{COL_STOCK_CODE}:N", title="Stock Code"),
-                alt.Tooltip("strategy:N", title="Strategy"),
-                alt.Tooltip("metric_label:N", title="Metric"),
-                alt.Tooltip("value:Q", title="Value", format=",.6f"),
-            ],
-        )
-        .properties(height=300)
+    st.caption(
+        "Each metric is shown in its own full-width chart so nothing gets compressed on smaller screens."
     )
-    st.altair_chart(chart, width="stretch")
-
-    selected_table = (
-        product_metrics_df.loc[
-            product_metrics_df[COL_STOCK_CODE] == selected_stock_code,
-            ["strategy", *DASHBOARD_PRODUCT_COMPARISON_METRICS],
-        ]
-        .sort_values("strategy", kind="mergesort")
-        .reset_index(drop=True)
-    )
+    selected_table = _product_metric_long_frame(product_metrics_df, selected_stock_code)
     for metric_name in DASHBOARD_PRODUCT_COMPARISON_METRICS:
-        selected_table[metric_name] = selected_table[metric_name].map(lambda value: round(float(value), 6))
-    st.dataframe(selected_table, width="stretch", hide_index=True)
-
-
-def _boxplot(dataframe: pd.DataFrame, metric_name: str, title: str) -> alt.Chart:
-    return (
-        alt.Chart(dataframe)
-        .mark_boxplot(extent="min-max")
-        .encode(
-            x=alt.X("strategy:N", title="Strategy", sort=sorted(dataframe["strategy"].unique().tolist())),
-            y=alt.Y(f"{metric_name}:Q", title=_format_metric_label(metric_name)),
-            color=alt.Color("strategy:N", legend=None),
-            tooltip=[alt.Tooltip("strategy:N", title="Strategy")],
+        st.altair_chart(
+            _bar_chart(
+                selected_table,
+                metric_name,
+                f"{_format_metric_label(metric_name)} by Strategy",
+                highlighted_strategy=_strategy_for_metric(
+                    selected_table,
+                    metric_name,
+                    ascending=not _metric_prefers_higher(metric_name),
+                ),
+            ),
+            width="stretch",
         )
-        .properties(height=320, title=title)
+
+    selected_table = selected_table[["strategy", *DASHBOARD_PRODUCT_COMPARISON_METRICS]]
+    st.dataframe(
+        _styled_metric_table(selected_table, DASHBOARD_PRODUCT_COMPARISON_METRICS),
+        width="stretch",
+        hide_index=True,
     )
-
-
-def _render_distribution_analysis(product_metrics_df: pd.DataFrame) -> None:
-    st.subheader(DASHBOARD_SECTION_TITLES["distribution"])
-    st.caption("Distribution plots provide supporting context for product-level variation across strategies.")
-    left_column, right_column = st.columns(2)
-    with left_column:
-        st.altair_chart(
-            _boxplot(product_metrics_df, "mean_daily_revenue", "Mean Daily Revenue Distribution by Strategy"),
-            width="stretch",
-        )
-    with right_column:
-        st.altair_chart(
-            _boxplot(product_metrics_df, "mean_absolute_change", "Mean Absolute Change Distribution by Strategy"),
-            width="stretch",
-        )
 
 
 def _statistical_results_frame(
@@ -375,6 +435,7 @@ def _statistical_results_frame(
 def _render_statistical_tests(statistical_payload: dict[str, dict[str, dict[str, dict[str, float]]]]) -> None:
     st.subheader(DASHBOARD_SECTION_TITLES["statistical_tests"])
     st.caption("Results are interpreted at alpha = 0.05 using both paired t-tests and Wilcoxon signed-rank tests.")
+    st.caption("Significance outcomes are highlighted to separate robust findings from weaker evidence.")
     results_df = _statistical_results_frame(statistical_payload)
     significant_df = results_df.loc[results_df["Significant"]].reset_index(drop=True)
     mixed_df = results_df.loc[~results_df["Significant"]].reset_index(drop=True)
@@ -392,7 +453,9 @@ def _render_statistical_tests(statistical_payload: dict[str, dict[str, dict[str,
         if stability_all_significant:
             interpretation_parts.append("stability differences involving the hybrid strategy are significant across both tests")
         if revenue_mixed:
-            interpretation_parts.append("revenue evidence is mixed for the hybrid versus rule comparison")
+            interpretation_parts.append(
+                "revenue differences between hybrid and rule are weaker and not consistently significant across tests"
+            )
         if interpretation_parts:
             st.markdown(f"Interpretation: {'; '.join(interpretation_parts)}.")
 
@@ -429,7 +492,7 @@ def _render_statistical_tests(statistical_payload: dict[str, dict[str, dict[str,
     display_df = display_df[
         ["Metric", "Comparison", "Test", "Statistic", "p-value", "Sample Size", "Conclusion"]
     ]
-    st.dataframe(display_df, width="stretch", hide_index=True)
+    st.dataframe(_styled_statistical_results_table(display_df), width="stretch", hide_index=True)
 
 
 def main() -> None:
@@ -437,6 +500,9 @@ def main() -> None:
     st.set_page_config(page_title="Dynamic Pricing Study Dashboard", layout="wide")
     st.title("Dynamic Pricing Strategy Dashboard")
     st.caption("Read-only Dashboard backed exclusively by Evaluation artifacts.")
+    st.caption(
+        "Sections 1-4 present the core findings used to answer the research question. Section 5 provides supporting evidence."
+    )
 
     try:
         product_metrics_df, summary_payload, statistical_payload = load_dashboard_inputs()
@@ -459,7 +525,6 @@ def main() -> None:
     _render_stability_comparison(summary_df)
     _render_statistical_tests(statistical_payload)
     _render_product_level_comparison(product_metrics_df)
-    _render_distribution_analysis(product_metrics_df)
 
 
 if __name__ == "__main__":

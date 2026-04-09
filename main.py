@@ -2,12 +2,8 @@ import argparse
 import logging
 from collections.abc import Callable
 
-from config import SIMULATION_STRATEGIES
+from config import BUILD_GROUP, EVALUATE_COMMAND, SIMULATE_COMMAND, SIMULATION_STRATEGIES, VALIDATE_COMMAND
 from pipeline.execution import (
-    BUILD_GROUP,
-    EVALUATE_COMMAND,
-    SIMULATE_COMMAND,
-    VALIDATE_COMMAND,
     command_logging_targets,
 )
 from pipeline.runner import run_all_simulations, run_build, run_evaluation, run_simulation, run_unit

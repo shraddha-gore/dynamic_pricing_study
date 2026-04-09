@@ -236,6 +236,45 @@ MODEL_TARGET_COLUMN = "daily_units"
 
 
 # -----------------------------
+# Execution naming constants
+# -----------------------------
+BUILD_GROUP = "build"
+
+INSPECT_UNIT = "inspect"
+CLEAN_UNIT = "clean"
+SELECT_PRODUCTS_UNIT = "select_products"
+AGGREGATE_DAILY_UNIT = "aggregate_daily"
+FEATURE_ENGINEERING_UNIT = "feature_engineering"
+TRAIN_MODEL_UNIT = "train_model"
+
+SIMULATE_COMMAND = "simulate"
+EVALUATE_COMMAND = "evaluate"
+VALIDATE_COMMAND = "validate"
+DASHBOARD_COMMAND = "dashboard"
+
+BUILD_UNITS = (
+    INSPECT_UNIT,
+    CLEAN_UNIT,
+    SELECT_PRODUCTS_UNIT,
+    AGGREGATE_DAILY_UNIT,
+    FEATURE_ENGINEERING_UNIT,
+    TRAIN_MODEL_UNIT,
+)
+
+GROUP_UNITS = {
+    BUILD_GROUP: BUILD_UNITS,
+}
+
+COMMAND_LOGGING_TARGETS = {
+    BUILD_GROUP: BUILD_UNITS,
+    SIMULATE_COMMAND: (SIMULATE_COMMAND,),
+    EVALUATE_COMMAND: (EVALUATE_COMMAND,),
+    VALIDATE_COMMAND: (VALIDATE_COMMAND,),
+    DASHBOARD_COMMAND: (DASHBOARD_COMMAND,),
+}
+
+
+# -----------------------------
 # Simulation constants
 # -----------------------------
 SIMULATION_STRATEGIES = ("rule", "ml", "hybrid")
@@ -360,6 +399,11 @@ DASHBOARD_TEST_LABELS = {
     "wilcoxon": "Wilcoxon signed-rank test",
 }
 DASHBOARD_SIGNIFICANCE_THRESHOLD = 0.05
+DASHBOARD_HIGHLIGHT_BAR_COLOR = "#2F6B5F"
+DASHBOARD_MUTED_BAR_COLOR = "#D8DEE6"
+DASHBOARD_LEADER_CELL_STYLE = "background-color: #E9F7F2; font-weight: 600;"
+DASHBOARD_SIGNIFICANT_CELL_STYLE = "background-color: #E9F7F2; color: #14532D; font-weight: 600;"
+DASHBOARD_NONSIGNIFICANT_CELL_STYLE = "background-color: #FFF4E5; color: #9A3412; font-weight: 600;"
 
 
 # -----------------------------
