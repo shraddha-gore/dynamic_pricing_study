@@ -242,4 +242,4 @@ def run_simulation(strategy_name: str) -> None:
 
 
 if __name__ == "__main__":
-    raise SystemExit("Simulation requires an explicit strategy. Use main.py --simulate {rule|ml|hybrid}.")
+    raise SystemExit("Run simulations through main.py --simulate.")

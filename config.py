@@ -44,18 +44,12 @@ EVALUATION_STATISTICAL_TESTS_PATH = "results/metrics/statistical_tests.json"
 # Report and log files
 # -----------------------------
 RAW_INSPECTION_REPORT_FILE = "raw_inspection_report.json"
-RAW_INSPECTION_LOG_FILE = "inspection.log"
-CLEANING_LOG_FILE = "cleaning.log"
 PRODUCT_SELECTION_REPORT_FILE = "product_selection_report.json"
-PRODUCT_SELECTION_LOG_FILE = "product_selection.log"
-DAILY_AGGREGATION_LOG_FILE = "aggregation.log"
-FEATURE_ENGINEERING_LOG_FILE = "feature_engineering.log"
-MODEL_TRAINING_LOG_FILE = "model_training.log"
-SIMULATION_LOG_FILE = "simulation.log"
-EVALUATION_LOG_FILE = "evaluation.log"
+BUILD_LOG_FILE = "build.log"
+SIMULATION_LOG_FILE = "simulate.log"
+EVALUATION_LOG_FILE = "evaluate.log"
 DASHBOARD_LOG_FILE = "dashboard.log"
-VALIDATION_LOG_FILE = "validation.log"
-EXPERIMENT_LOG_FILE = "experiment.log"
+MASTER_LOG_FILE = "master.log"
 
 
 # -----------------------------
@@ -249,7 +243,6 @@ TRAIN_MODEL_UNIT = "train_model"
 
 SIMULATE_COMMAND = "simulate"
 EVALUATE_COMMAND = "evaluate"
-VALIDATE_COMMAND = "validate"
 DASHBOARD_COMMAND = "dashboard"
 
 BUILD_UNITS = (
@@ -266,10 +259,9 @@ GROUP_UNITS = {
 }
 
 COMMAND_LOGGING_TARGETS = {
-    BUILD_GROUP: BUILD_UNITS,
+    BUILD_GROUP: (BUILD_GROUP,),
     SIMULATE_COMMAND: (SIMULATE_COMMAND,),
     EVALUATE_COMMAND: (EVALUATE_COMMAND,),
-    VALIDATE_COMMAND: (VALIDATE_COMMAND,),
     DASHBOARD_COMMAND: (DASHBOARD_COMMAND,),
 }
 
@@ -404,27 +396,3 @@ DASHBOARD_MUTED_BAR_COLOR = "#D8DEE6"
 DASHBOARD_LEADER_CELL_STYLE = "background-color: #E9F7F2; font-weight: 600;"
 DASHBOARD_SIGNIFICANT_CELL_STYLE = "background-color: #E9F7F2; color: #14532D; font-weight: 600;"
 DASHBOARD_NONSIGNIFICANT_CELL_STYLE = "background-color: #FFF4E5; color: #9A3412; font-weight: 600;"
-
-
-# -----------------------------
-# Validation constants
-# -----------------------------
-VALIDATION_SUMMARY_PATH = "results/validation/validation_summary.json"
-VALIDATION_PARAMETER_VARIATIONS = (
-    {
-        "variation_name": "max_daily_change_0.01",
-        "parameter_name": "MAX_DAILY_CHANGE",
-        "parameter_value": 0.01,
-    },
-    {
-        "variation_name": "hybrid_smoothing_alpha_0.7",
-        "parameter_name": "HYBRID_SMOOTHING_ALPHA",
-        "parameter_value": 0.7,
-    },
-)
-VALIDATION_RANKING_CHECKS = (
-    "ml_highest_total_revenue",
-    "hybrid_lowest_mean_absolute_change",
-)
-VALIDATION_RERUN_METRICS = ("total_revenue", "mean_absolute_change")
-VALIDATION_RERUN_TOLERANCE = 1e-6

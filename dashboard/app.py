@@ -38,7 +38,11 @@ from config import (
 )
 from pipeline.execution import command_logging_targets
 from preprocessing.common import configured_path
-from utils.data_contracts import validate_evaluation_metrics, validate_evaluation_summary, validate_evaluation_tests
+from utils.data_contracts import (
+    validate_evaluation_metrics,
+    validate_evaluation_summary,
+    validate_evaluation_tests,
+)
 from utils.logging_config import configure_logging
 
 logger = logging.getLogger("dashboard.app")

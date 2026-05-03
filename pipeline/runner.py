@@ -10,9 +10,7 @@ from config import (
     SELECT_PRODUCTS_UNIT,
     SIMULATION_STRATEGIES,
     TRAIN_MODEL_UNIT,
-    VALIDATE_COMMAND,
 )
-from evaluation.validation import run_validation
 from models.demand_model import run_demand_model_training
 from pipeline.execution import group_units
 from preprocessing.aggregate_daily import run_aggregate_daily
@@ -53,7 +51,6 @@ def _unit_registry() -> tuple[tuple[str, Callable[[], None]], ...]:
         (FEATURE_ENGINEERING_UNIT, run_feature_engineering),
         (TRAIN_MODEL_UNIT, run_demand_model_training),
         (EVALUATE_COMMAND, run_evaluation),
-        (VALIDATE_COMMAND, run_validation),
     )
 
 

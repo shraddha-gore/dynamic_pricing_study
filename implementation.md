@@ -1,6 +1,6 @@
 # Comprehensive Implementation Notes
 
-This document is a code-faithful, dissertation-oriented description of the current implementation in this repository. It is intentionally exhaustive. The aim is to capture not only the methodological flow, but also the concrete execution logic, frozen parameters, artifact schemas, validation rules, and current verified outputs that exist in the codebase and generated artifacts.
+This document is a code-faithful, dissertation-oriented description of the current implementation in this repository. It is intentionally exhaustive. The aim is to capture not only the methodological flow, but also the concrete execution logic, frozen parameters, artifact schemas, data-contract rules, and current verified outputs that exist in the codebase and generated artifacts.
 
 The description below reflects the implementation present on the current branch and the frozen outputs currently stored under `data/processed/`, `results/`, and `logs/`.
 
@@ -110,7 +110,7 @@ The implementation is organized into functional areas:
 - `main.py`
   CLI entrypoint and top-level command dispatch.
 - `config.py`
-  Central source of paths, constants, schema definitions, strategy parameters, and validation settings.
+  Central source of paths, constants, schema definitions, strategy parameters, and reporting settings.
 - `pipeline/`
   Execution naming and orchestration.
 - `preprocessing/`
@@ -122,7 +122,7 @@ The implementation is organized into functional areas:
 - `simulation/`
   Shared simulation engine.
 - `evaluation/`
-  Metric computation, statistical testing, and reproducibility validation.
+  Metric computation and statistical testing.
 - `dashboard/`
   Streamlit read-only comparison dashboard.
 - `utils/`
@@ -134,14 +134,13 @@ The implementation is organized into functional areas:
 
 The executable entrypoint is `main.py`. It defines four explicit command families:
 
+- `--run-pipeline`
 - `--build`
-- `--simulate {rule|ml|hybrid|all}`
+- `--simulate`
 - `--evaluate`
-- `--validate`
-
 If no command is provided, the parser fails with:
 
-- `Specify one of --build, --simulate, --evaluate, or --validate.`
+- `Specify one of --run-pipeline, --build, --simulate, or --evaluate.`
 
 There is no implicit default mode.
 
@@ -149,11 +148,10 @@ There is no implicit default mode.
 
 The dispatch order in `main.py` is:
 
-1. `--evaluate`
-2. `--simulate` for one strategy
-3. `--simulate all`
-4. `--validate`
-5. `--build`
+1. `--run-pipeline`
+2. `--evaluate`
+3. `--simulate`
+4. `--build`
 
 This precedence matters only if conflicting flags were ever passed simultaneously. Under normal usage, commands are expected to be explicit and non-conflicting.
 
@@ -165,7 +163,7 @@ The current execution names are:
 
 - Build group: `build`
 - Units: `inspect`, `clean`, `select_products`, `aggregate_daily`, `feature_engineering`, `train_model`
-- Commands: `simulate`, `evaluate`, `validate`, `dashboard`
+- Commands: `simulate`, `evaluate`, `dashboard`
 
 The build group currently contains exactly these six units in order:
 
@@ -181,7 +179,7 @@ The build group currently contains exactly these six units in order:
 `pipeline/runner.py` provides:
 
 - `run_build()` to execute the build group
-- `run_simulation(strategy_name)` to run one strategy
+- `run_simulation(strategy_name)` as an internal helper to run one strategy
 - `run_all_simulations()` to iterate over `("rule", "ml", "hybrid")`
 - `run_evaluation()` to run metric computation then statistical tests
 - `run_unit(unit_name)` to dispatch individual units
@@ -190,33 +188,50 @@ Important execution details:
 
 - `run_all_simulations()` wraps strategy failures and reports which strategy failed.
 - `run_evaluation()` imports evaluation modules lazily inside the function.
-- validation is executed via `run_unit(VALIDATE_COMMAND)` from the main CLI.
 
-### 5.5 Canonical Command Set
+### 5.5 Execution Modes
+
+The implementation supports two practical ways to run the study:
+
+- end-to-end with `python main.py --run-pipeline`
+- step by step with `python main.py --build`, `python main.py --simulate`, and `python main.py --evaluate`
+
+The step-by-step mode is useful when you want to inspect intermediate artifacts between stages or rerun only part of the workflow after a change.
+
+### 5.6 Canonical Command Set
 
 The intended command set is:
 
 ```bash
+python main.py --run-pipeline
 python main.py --build
-python main.py --simulate rule
-python main.py --simulate ml
-python main.py --simulate hybrid
-python main.py --simulate all
+python main.py --simulate
 python main.py --evaluate
-python main.py --validate
 streamlit run dashboard/app.py
 ```
 
-### 5.6 Recommended End-to-End Order
+### 5.7 Stage Responsibilities
 
-The practical end-to-end execution order is:
+At a high level, each pipeline stage does the following:
+
+- `--build`: runs the data preparation and model-training chain, which inspects the raw CSV, cleans it, selects products, aggregates daily product data, engineers features, and trains the demand model.
+- `--simulate`: loads the trained model and test features, simulates all three pricing strategies (`rule`, `ml`, and `hybrid`), and writes candidate/result parquet files for each strategy.
+- `--evaluate`: reads the simulation outputs, computes product-level and strategy-level metrics, and runs the paired statistical tests.
+- `streamlit run dashboard/app.py`: opens the read-only dashboard that summarizes the evaluation artifacts.
+
+### 5.8 Recommended End-to-End Order
+
+The practical end-to-end execution options are:
+
+1. `python main.py --run-pipeline`
+
+or, equivalently:
 
 1. `python main.py --build`
-2. `python main.py --simulate all`
+2. `python main.py --simulate`
 3. `python main.py --evaluate`
-4. `python main.py --validate`
 
-This sequence builds the processed data and model, produces all simulation outputs, computes evaluation artifacts, and then verifies robustness and reproducibility.
+Both paths build the processed data and model, produce all simulation outputs, and compute evaluation artifacts.
 
 ## 6. Configuration Architecture in `config.py`
 
@@ -253,25 +268,15 @@ Global project and path constants:
 - `EVALUATION_STRATEGY_SUMMARY_PATH = "results/metrics/strategy_summary.json"`
 - `EVALUATION_STATISTICAL_TESTS_PATH = "results/metrics/statistical_tests.json"`
 
-### 6.5 Validation Path
+### 6.5 Log File Names
 
-- `VALIDATION_SUMMARY_PATH = "results/validation/validation_summary.json"`
-
-### 6.6 Log File Names
-
-- `RAW_INSPECTION_LOG_FILE = "inspection.log"`
-- `CLEANING_LOG_FILE = "cleaning.log"`
-- `PRODUCT_SELECTION_LOG_FILE = "product_selection.log"`
-- `DAILY_AGGREGATION_LOG_FILE = "aggregation.log"`
-- `FEATURE_ENGINEERING_LOG_FILE = "feature_engineering.log"`
-- `MODEL_TRAINING_LOG_FILE = "model_training.log"`
-- `SIMULATION_LOG_FILE = "simulation.log"`
-- `EVALUATION_LOG_FILE = "evaluation.log"`
+- `BUILD_LOG_FILE = "build.log"`
+- `SIMULATION_LOG_FILE = "simulate.log"`
+- `EVALUATION_LOG_FILE = "evaluate.log"`
 - `DASHBOARD_LOG_FILE = "dashboard.log"`
-- `VALIDATION_LOG_FILE = "validation.log"`
-- `EXPERIMENT_LOG_FILE = "experiment.log"`
+- `MASTER_LOG_FILE = "master.log"`
 
-### 6.7 Raw Source Column Names
+### 6.6 Raw Source Column Names
 
 The raw CSV headers expected by the implementation are:
 
@@ -284,7 +289,7 @@ The raw CSV headers expected by the implementation are:
 - `Customer ID`
 - `Country`
 
-### 6.8 Canonical Processed Column Names
+### 6.7 Canonical Processed Column Names
 
 The canonical processed schema uses:
 
@@ -310,7 +315,7 @@ The raw-to-canonical mapping is:
 | `Customer ID` | `customer_id` |
 | `Country` | `country` |
 
-### 6.9 Cross-Domain Experimental Parameters
+### 6.8 Cross-Domain Experimental Parameters
 
 The major shared experimental constants are:
 
@@ -322,7 +327,7 @@ The major shared experimental constants are:
 - `MAX_DAILY_CHANGE = 0.03`
 - `HYBRID_SMOOTHING_ALPHA = 0.3`
 
-### 6.10 Cleaning Parameters
+### 6.9 Cleaning Parameters
 
 - `TARGET_COUNTRY = "United Kingdom"`
 - `PRICE_OUTLIER_THRESHOLD = 1000.0`
@@ -331,22 +336,22 @@ The major shared experimental constants are:
 - `EXCLUDED_STOCK_CODES = ["DOS", "DOT", "POST", "M", "AMAZONFEE", "B"]`
 - `CLEANING_PRICE_DESCRIBE_PERCENTILES = [0.5, 0.9, 0.95, 0.99, 0.995, 0.999]`
 
-### 6.11 Product Selection Parameters
+### 6.10 Product Selection Parameters
 
 - `MIN_ACTIVE_DAYS = 150`
 - `SELECTED_PRODUCT_COUNT = 5`
 - `MIN_PRICE_STD = 0.0`
 
-### 6.12 Model Parameters
+### 6.11 Model Parameters
 
 - `MODEL_TYPE = "LinearRegression"`
 - `MODEL_TARGET_COLUMN = "daily_units"`
 
-### 6.13 Simulation Strategy Names
+### 6.12 Simulation Strategy Names
 
 - `SIMULATION_STRATEGIES = ("rule", "ml", "hybrid")`
 
-### 6.14 Evaluation Constants
+### 6.13 Evaluation Constants
 
 The implementation freezes:
 
@@ -367,7 +372,7 @@ The current pairing keys are:
 - `stock_code`
 - `invoice_day`
 
-### 6.15 Dashboard Constants
+### 6.14 Dashboard Constants
 
 The dashboard uses:
 
@@ -389,21 +394,6 @@ The dashboard uses:
 - a significance threshold of `0.05`
 - label maps for test names and statistical sections
 - dashboard highlight colors and table-cell style strings used for visual emphasis
-
-### 6.16 Validation Constants
-
-Current validation settings are:
-
-- `VALIDATION_PARAMETER_VARIATIONS`
-  - `MAX_DAILY_CHANGE = 0.01`
-  - `HYBRID_SMOOTHING_ALPHA = 0.7`
-- `VALIDATION_RANKING_CHECKS`
-  - `ml_highest_total_revenue`
-  - `hybrid_lowest_mean_absolute_change`
-- `VALIDATION_RERUN_METRICS`
-  - `total_revenue`
-  - `mean_absolute_change`
-- `VALIDATION_RERUN_TOLERANCE = 1e-6`
 
 ## 7. Shared Helper Utilities
 
@@ -432,38 +422,32 @@ This function is reused across preprocessing, modeling, simulation, and evaluati
 - the root logger is set to `INFO`
 - any existing handlers are cleared
 - `logs/` is created if missing
-- an `experiment.log` handler is always added
-- target-specific handlers are added for the selected command or unit
+- a `master.log` handler is always added
+- target-specific handlers are added for the selected command
 
 ### 8.2 Log Formats
 
 Two formats are used:
 
-- `experiment.log`
+- `master.log`
   - `%(asctime)s - %(levelname)s - %(message)s`
 - target log files
   - `%(asctime)s | %(levelname)s | %(message)s`
 
 ### 8.3 Prefix-Based Filtering
 
-Target-specific logs use `LoggerPrefixFilter`, which filters records by logger name prefixes. This keeps, for example, `logs/simulation.log` limited to logs emitted from `simulation.simulator`.
+Target-specific logs use `LoggerPrefixFilter`, which filters records by logger name prefixes. This keeps, for example, `logs/simulate.log` limited to logs emitted from `simulation.simulator`.
 
 ### 8.4 Logging Target Map
 
 Current logging targets are:
 
-- inspection -> `preprocessing.raw_inspection`
-- cleaning -> `preprocessing.clean_data`
-- product selection -> `preprocessing.select_products`
-- aggregation -> `preprocessing.aggregate_daily`
-- feature engineering -> `preprocessing.feature_engineering`
-- model training -> `models.demand_model`
+- build -> `preprocessing.raw_inspection`, `preprocessing.clean_data`, `preprocessing.select_products`, `preprocessing.aggregate_daily`, `preprocessing.feature_engineering`, `models.demand_model`
 - simulation -> `simulation.simulator`
 - evaluation -> `evaluation.metrics`, `evaluation.statistical_tests`, `utils.simulation_artifacts`
 - dashboard -> `dashboard.app`
-- validation -> `evaluation.validation`, `simulation.simulator`, `evaluation.metrics`, `evaluation.statistical_tests`, `utils.simulation_artifacts`
 
-This logging arrangement is useful for dissertation auditability because each stage leaves a stage-specific execution trail in addition to the global `experiment.log`.
+This logging arrangement is useful for dissertation auditability because each pipeline stage leaves a stage-specific execution trail in addition to the global `master.log`.
 
 ## 9. Data Inspection Implementation
 
@@ -476,7 +460,7 @@ Inspection is implemented in:
 Outputs:
 
 - `results/reports/raw_inspection_report.json`
-- `logs/inspection.log`
+- `logs/build.log`
 
 ### 9.2 Inspection Responsibilities
 
@@ -599,11 +583,11 @@ Cleaning is implemented in:
 Outputs:
 
 - `data/processed/clean_transactions.parquet`
-- `logs/cleaning.log`
+- `logs/build.log`
 
 ### 10.2 Raw Column Validation
 
-Before any transformation, cleaning validates the presence of these required raw columns:
+Before any transformation, cleaning checks the presence of these required raw columns:
 
 - `Invoice`
 - `StockCode`
@@ -663,7 +647,7 @@ The same applies to negative quantities and non-positive prices. Therefore, insp
 
 ### 10.7 Current Cleaning Log Summary
 
-From `logs/cleaning.log`, the current stagewise counts are:
+From `logs/build.log`, the current stagewise counts are:
 
 | Cleaning stage | Rows removed | Rows remaining |
 | --- | ---: | ---: |
@@ -744,7 +728,7 @@ Outputs:
 
 - `data/processed/selected_products.parquet`
 - `results/reports/product_selection_report.json`
-- `logs/product_selection.log`
+- `logs/build.log`
 
 ### 11.2 Input Requirements
 
@@ -851,7 +835,7 @@ Aggregation is implemented in:
 Outputs:
 
 - `data/processed/daily_product_data.parquet`
-- `logs/aggregation.log`
+- `logs/build.log`
 
 ### 12.2 Input Requirements
 
@@ -911,7 +895,7 @@ The exact frozen column order is:
 
 ### 12.6 Current Frozen Aggregation Results
 
-From `logs/aggregation.log`, the current aggregation summary is:
+From `logs/build.log`, the current aggregation summary is:
 
 - cleaned input rows: `484,082`
 - rows belonging to selected products: `8,680`
@@ -941,7 +925,7 @@ Outputs:
 
 - `data/processed/feature_train_data.parquet`
 - `data/processed/feature_test_data.parquet`
-- `logs/feature_engineering.log`
+- `logs/build.log`
 
 ### 13.2 Input Requirements
 
@@ -1084,7 +1068,7 @@ The demand model uses these 23 predictors:
 
 ### 13.10 Current Frozen Feature Results
 
-From `logs/feature_engineering.log` and the generated artifacts:
+From `logs/build.log` and the generated artifacts:
 
 - aggregated input rows: `1,358`
 - modeled rows after lag-based row removal: `1,323`
@@ -1115,7 +1099,7 @@ Outputs:
 
 - `models/artifacts/demand_model.joblib`
 - `results/metrics/demand_model_metrics.json`
-- `logs/model_training.log`
+- `logs/build.log`
 
 ### 14.2 Input Validation
 
@@ -1150,7 +1134,7 @@ The model training step:
 
 ### 14.5 Current Frozen Model Metrics
 
-From `results/metrics/demand_model_metrics.json` and `logs/model_training.log`, the current model metrics are:
+From `results/metrics/demand_model_metrics.json` and `logs/build.log`, the current model metrics are:
 
 - model type: `LinearRegression`
 - target: `daily_units`
@@ -1469,7 +1453,7 @@ The simulator records:
 
 ### 16.13 Current Frozen Simulation Output Sizes
 
-From `logs/simulation.log` and the parquet files:
+From `logs/simulate.log` and the parquet files:
 
 - test rows per strategy: `266`
 - candidate rows per strategy: `1,330`
@@ -1507,7 +1491,7 @@ Outputs:
 
 - `results/metrics/strategy_metrics.parquet`
 - `results/metrics/strategy_summary.json`
-- `logs/evaluation.log`
+- `logs/evaluate.log`
 
 ### 17.2 Simulation Output Loading
 
@@ -1647,7 +1631,7 @@ The current implementation therefore yields:
 - lowest total simulated revenue: `hybrid`
 - lowest mean absolute price change: `hybrid`
 
-This is the central comparative result that is later checked again in validation.
+This is the central comparative result of the current frozen outputs.
 
 ## 18. Statistical Testing Implementation
 
@@ -1888,7 +1872,7 @@ The dashboard provides:
 
 This section is explicitly labelled as supporting evidence for discussion and appendix use rather than a primary result section.
 
-### 19.12 Statistical Tests Section
+### 19.11 Statistical Tests Section
 
 The nested JSON statistical results are flattened into a dataframe with columns:
 
@@ -1912,192 +1896,11 @@ The rendered dashboard additionally:
 - adds a `Conclusion` column with `Significant` or `Not significant`
 - visually highlights the `Conclusion` outcomes so significant and non-significant results are immediately distinguishable
 
-## 20. Validation and Reproducibility Implementation
-
-### 20.1 Module and Output
-
-Validation is implemented in:
-
-- `evaluation/validation.py`
-
-Output:
-
-- `results/validation/validation_summary.json`
-- `logs/validation.log`
-
-### 20.2 Validation Purpose
-
-Validation is not conventional unit testing. It is a reproducibility and stability workflow that checks whether the frozen comparative findings hold under:
-
-- selected hybrid-parameter perturbations
-- a full rerun consistency check
-
-### 20.3 Baseline Loading
-
-Validation first loads the baseline evaluation summary from:
-
-- `results/metrics/strategy_summary.json`
-
-That payload is validated with `validate_evaluation_summary()`.
-
-### 20.4 Artifact Preservation Mechanism
-
-The validator identifies a managed set of artifacts:
-
-- evaluation metrics parquet
-- evaluation summary JSON
-- evaluation tests JSON
-- every simulation candidate parquet
-- every simulation result parquet
-
-`_preserve_managed_artifacts()` snapshots these files into a temporary directory and restores them after validation finishes. If an artifact did not exist before validation but was created during validation, it is deleted on exit.
-
-This makes the validation workflow non-destructive.
-
-### 20.5 Temporary Hybrid Override Mechanism
-
-Validation applies parameter changes by temporarily monkey-patching module-level variables in `strategies.hybrid_pricing`:
-
-- `MAX_DAILY_CHANGE`
-- `HYBRID_SMOOTHING_ALPHA`
-
-`_temporary_hybrid_override()` restores the original value afterward.
-
-### 20.6 Internal Re-Execution Logic
-
-`_run_all_simulations_and_evaluation()` performs:
-
-1. `run_simulation("rule")`
-2. `run_simulation("ml")`
-3. `run_simulation("hybrid")`
-4. `compute_metrics()`
-5. `run_tests()`
-
-The demand model is not retrained during validation.
-
-### 20.7 Ranking Logic
-
-Validation ranks strategies by:
-
-- `total_revenue` descending
-- `mean_absolute_change` ascending
-
-The ranking function uses deterministic sorting with a tie-break on strategy name.
-
-### 20.8 Parameter Variation Checks
-
-For each variation, the validation payload records:
-
-- `variation_name`
-- `parameter_name`
-- `parameter_value`
-- `run_succeeded`
-- `ml_highest_total_revenue`
-- `hybrid_lowest_mean_absolute_change`
-- `strategy_order_by_total_revenue`
-- `strategy_order_by_mean_absolute_change`
-- `error_message`
-
-### 20.9 Rerun Consistency Check
-
-The rerun consistency check:
-
-- reruns all simulations
-- reruns evaluation
-- compares regenerated summary metrics against baseline
-
-It records, for each strategy and each tracked metric:
-
-- `strategy_name`
-- `metric_name`
-- `baseline_value`
-- `rerun_value`
-- `absolute_difference`
-- `within_tolerance`
-
-The tracked metrics are:
-
-- `total_revenue`
-- `mean_absolute_change`
-
-The tolerance is:
-
-- `1e-6`
-
-### 20.10 Validation Summary Schema
-
-The top-level validation JSON contains:
-
-- `overall_passed`
-- `baseline_summary`
-- `parameter_variations`
-- `rerun_consistency`
-
-### 20.11 Validation Rules
-
-`validate_validation_summary()` checks:
-
-- exact top-level keys
-- `overall_passed` is boolean
-- baseline summary is a valid evaluation summary
-- `parameter_variations` length matches configured variations
-- each variation payload matches the configured parameter and expected keys
-- ranking lists are permutations of the strategy set when present
-- rerun consistency keys are exact
-- rerun metric tolerance equals the configured tolerance
-- rerun checks have the expected count
-- rerun checks cover every expected `(strategy_name, metric_name)` pair
-
-### 20.12 Current Frozen Validation Result
-
-From `results/validation/validation_summary.json`:
-
-- `overall_passed = true`
-
-Current parameter-variation outcomes:
-
-| Variation | Parameter | Value | Run succeeded | ML highest revenue | Hybrid lowest mean abs change |
-| --- | --- | ---: | --- | --- | --- |
-| `max_daily_change_0.01` | `MAX_DAILY_CHANGE` | 0.01 | `true` | `true` | `true` |
-| `hybrid_smoothing_alpha_0.7` | `HYBRID_SMOOTHING_ALPHA` | 0.7 | `true` | `true` | `true` |
-
-Current ranking outputs under both variations are:
-
-- revenue ranking: `ml > rule > hybrid`
-- stability ranking by mean absolute change: `hybrid < rule < ml`
-
-Current rerun consistency result:
-
-- `run_succeeded = true`
-- `all_within_tolerance = true`
-- `metric_tolerance = 1e-6`
-
-All six tracked checks are exactly equal to baseline within tolerance:
-
-| Strategy | Metric | Baseline | Rerun | Absolute difference | Within tolerance |
-| --- | --- | ---: | ---: | ---: | --- |
-| `rule` | `total_revenue` | 384707.66064544633 | 384707.66064544633 | 0.0 | `true` |
-| `rule` | `mean_absolute_change` | 1.127264443365309 | 1.127264443365309 | 0.0 | `true` |
-| `ml` | `total_revenue` | 393990.38449901843 | 393990.38449901843 | 0.0 | `true` |
-| `ml` | `mean_absolute_change` | 1.1387687130798765 | 1.1387687130798765 | 0.0 | `true` |
-| `hybrid` | `total_revenue` | 378588.42467631155 | 378588.42467631155 | 0.0 | `true` |
-| `hybrid` | `mean_absolute_change` | 0.7599901254026927 | 0.7599901254026927 | 0.0 | `true` |
-
-### 20.13 Validation Log Summary
-
-From `logs/validation.log`, the current successful validation run on `2026-04-09` performed:
-
-- two parameter-variation reruns
-- one rerun consistency check
-- three full cycles of all simulations plus evaluation inside validation
-
-The logged ranking summaries match the frozen validation summary artifact.
-
-## 21. Exact Frozen Schemas and Contracts
+## 20. Exact Frozen Schemas and Contracts
 
 This section consolidates the exact schemas enforced across the project.
 
-### 21.1 Cleaned Transactions
+### 20.1 Cleaned Transactions
 
 ```text
 invoice
@@ -2110,7 +1913,7 @@ customer_id
 country
 ```
 
-### 21.2 Selected Products
+### 20.2 Selected Products
 
 ```text
 stock_code
@@ -2120,7 +1923,7 @@ price_std
 active_days
 ```
 
-### 21.3 Daily Aggregation
+### 20.3 Daily Aggregation
 
 ```text
 stock_code
@@ -2130,7 +1933,7 @@ avg_daily_price
 daily_revenue
 ```
 
-### 21.4 Feature Data
+### 20.4 Feature Data
 
 ```text
 stock_code
@@ -2164,7 +1967,7 @@ month_11
 month_12
 ```
 
-### 21.5 Model Feature Columns
+### 20.5 Model Feature Columns
 
 ```text
 lag1_units
@@ -2192,7 +1995,7 @@ month_11
 month_12
 ```
 
-### 21.6 Simulation Candidates
+### 20.6 Simulation Candidates
 
 ```text
 invoice_day
@@ -2203,7 +2006,7 @@ predicted_revenue
 candidate_rank_by_revenue
 ```
 
-### 21.7 Simulation Results
+### 20.7 Simulation Results
 
 ```text
 invoice_day
@@ -2218,7 +2021,7 @@ predicted_revenue
 strategy_name
 ```
 
-### 21.8 Evaluation Metrics
+### 20.8 Evaluation Metrics
 
 ```text
 stock_code
@@ -2232,7 +2035,7 @@ max_price_jump
 change_frequency
 ```
 
-### 21.9 Evaluation Summary JSON Metric Keys
+### 20.9 Evaluation Summary JSON Metric Keys
 
 ```text
 total_revenue
@@ -2243,7 +2046,7 @@ max_price_jump
 change_frequency
 ```
 
-### 21.10 Evaluation Tests JSON Scalar Keys
+### 20.10 Evaluation Tests JSON Scalar Keys
 
 ```text
 statistic
@@ -2251,18 +2054,9 @@ p_value
 sample_size
 ```
 
-### 21.11 Validation Summary Top-Level Keys
+## 21. Frozen Artifact Inventory
 
-```text
-overall_passed
-baseline_summary
-parameter_variations
-rerun_consistency
-```
-
-## 22. Frozen Artifact Inventory
-
-### 22.1 Processed Data Artifacts
+### 21.1 Processed Data Artifacts
 
 - `data/processed/clean_transactions.parquet`
 - `data/processed/selected_products.parquet`
@@ -2270,12 +2064,12 @@ rerun_consistency
 - `data/processed/feature_train_data.parquet`
 - `data/processed/feature_test_data.parquet`
 
-### 22.2 Model Artifacts
+### 21.2 Model Artifacts
 
 - `models/artifacts/demand_model.joblib`
 - `results/metrics/demand_model_metrics.json`
 
-### 22.3 Simulation Artifacts
+### 21.3 Simulation Artifacts
 
 - `results/simulation/rule_candidates.parquet`
 - `results/simulation/rule_results.parquet`
@@ -2284,46 +2078,36 @@ rerun_consistency
 - `results/simulation/hybrid_candidates.parquet`
 - `results/simulation/hybrid_results.parquet`
 
-### 22.4 Evaluation Artifacts
+### 21.4 Evaluation Artifacts
 
 - `results/metrics/strategy_metrics.parquet`
 - `results/metrics/strategy_summary.json`
 - `results/metrics/statistical_tests.json`
 
-### 22.5 Validation Artifact
-
-- `results/validation/validation_summary.json`
-
-### 22.6 Reporting and Audit Artifacts
+### 21.5 Reporting and Audit Artifacts
 
 - `results/reports/raw_inspection_report.json`
 - `results/reports/product_selection_report.json`
-- `logs/inspection.log`
-- `logs/cleaning.log`
-- `logs/product_selection.log`
-- `logs/aggregation.log`
-- `logs/feature_engineering.log`
-- `logs/model_training.log`
-- `logs/simulation.log`
-- `logs/evaluation.log`
+- `logs/build.log`
+- `logs/simulate.log`
+- `logs/evaluate.log`
 - `logs/dashboard.log`
-- `logs/validation.log`
-- `logs/experiment.log`
+- `logs/master.log`
 
-## 23. Current Verified Run Status
+## 22. Current Verified Run Status
 
-Based on the current logs and artifacts, the main frozen outputs were generated on `2026-04-09`.
+Based on the current logs and artifacts, the main frozen outputs were generated on `2026-05-03`.
 
 Key visible timestamps include:
 
-- build-stage logs on `2026-04-09`
-- simulation log on `2026-04-09 08:50`
-- evaluation log on `2026-04-09 08:50`
-- validation log on `2026-04-09 08:50`
+- build log entries on `2026-05-03 11:48`
+- simulation log entries on `2026-05-03 11:48`
+- evaluation log entries on `2026-05-03 11:48`
+- dashboard log entries on `2026-05-03 11:49` and `2026-05-03 11:50`
 
-The current artifacts therefore represent a coherent frozen run state from `2026-04-09`.
+The current artifacts therefore represent a coherent frozen run state from `2026-05-03`.
 
-## 24. Dissertation-Ready Interpretation
+## 23. Dissertation-Ready Interpretation
 
 The current implementation supports the following evidence-backed narrative:
 
@@ -2336,9 +2120,8 @@ The current implementation supports the following evidence-backed narrative:
 - Under the current frozen outputs, the hybrid strategy achieves the lowest average magnitude of price changes and the lowest price dispersion among the three strategies.
 - The rule-based strategy sits between ML and hybrid in revenue, while remaining relatively unstable in pricing compared with the hybrid strategy.
 - Statistical testing strongly supports hybrid-versus-ML differences and strongly supports hybrid-versus-rule stability differences.
-- Reproducibility validation shows that the main ranking pattern remains stable under selected hybrid-parameter perturbations and exact reruns.
 
-## 25. Important Methodological and Technical Boundaries
+## 24. Important Methodological and Technical Boundaries
 
 The dissertation should also state the implementation boundaries clearly:
 
@@ -2347,11 +2130,10 @@ The dissertation should also state the implementation boundaries clearly:
 - Only five products are included.
 - All pricing outcomes are simulated from predicted demand rather than measured from a live intervention.
 - The demand model is weak in predictive terms and should be framed as a fixed comparative baseline rather than a forecasting contribution.
-- The validation stage is a reproducibility and ranking-stability check, not a complete software assurance framework.
 - No multiple-testing correction is implemented in the current statistical testing code.
 - No causal demand estimation, counterfactual experimental design, or live A/B deployment is implemented.
 
-## 26. Most Useful Supporting Files for Dissertation Writing
+## 25. Most Useful Supporting Files for Dissertation Writing
 
 For dissertation drafting, the most useful sources in this repository are:
 
@@ -2361,6 +2143,5 @@ For dissertation drafting, the most useful sources in this repository are:
 - `results/metrics/demand_model_metrics.json`
 - `results/metrics/strategy_summary.json`
 - `results/metrics/statistical_tests.json`
-- `results/validation/validation_summary.json`
 
-In summary, the current implementation is sufficiently complete and sufficiently instrumented to support a dissertation methods chapter, implementation appendix, results chapter, and reproducibility appendix, provided the forecasting limitations and simulation boundaries are reported transparently.
+In summary, the current implementation is sufficiently complete and sufficiently instrumented to support a dissertation methods chapter, implementation appendix, and results chapter, provided the forecasting limitations and simulation boundaries are reported transparently.
