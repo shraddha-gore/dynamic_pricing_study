@@ -5,6 +5,7 @@ import sys
 
 import altair as alt
 import pandas as pd
+import pyarrow.parquet as pq
 import streamlit as st
 
 # Ensure project-root imports work when Streamlit executes this file directly.
@@ -12,7 +13,9 @@ if str(Path(__file__).resolve().parents[1]) not in sys.path:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import (
+    CLEAN_DATA_PATH,
     COL_STOCK_CODE,
+    DAILY_AGG_DATA_PATH,
     DASHBOARD_COMMAND,
     DASHBOARD_HIGHLIGHT_BAR_COLOR,
     DASHBOARD_LEADER_CELL_STYLE,
@@ -33,8 +36,21 @@ from config import (
     DASHBOARD_SUPPORTING_METRICS,
     DASHBOARD_SUMMARY_METRICS,
     DASHBOARD_TEST_LABELS,
+    FEATURE_TEST_DATA_PATH,
+    FEATURE_TRAIN_DATA_PATH,
+    HYBRID_SMOOTHING_ALPHA,
+    MAX_DAILY_CHANGE,
+    MODEL_FEATURE_COLUMNS,
+    MODEL_TYPE,
+    PRICE_GRID_PERCENTAGE,
+    PRODUCT_SELECTION_REPORT_FILE,
     PROJECT_ROOT,
+    RAW_INSPECTION_REPORT_FILE,
+    REPORTS_PATH,
+    RULE_PRICE_INCREASE,
+    SIMULATION_GRID_POINTS,
     SIMULATION_STRATEGIES,
+    TRAIN_SPLIT_RATIO,
 )
 from pipeline.execution import command_logging_targets
 from preprocessing.common import configured_path
@@ -94,6 +110,76 @@ def _dashboard_product_metrics_view(metrics_df: pd.DataFrame) -> pd.DataFrame:
     product_metrics_df[COL_STOCK_CODE] = product_metrics_df[COL_STOCK_CODE].astype(str)
     product_metrics_df = product_metrics_df.sort_values([COL_STOCK_CODE, "strategy"], kind="mergesort").reset_index(drop=True)
     return product_metrics_df
+
+
+def _parquet_row_count(path: Path) -> int:
+    return pq.read_metadata(path).num_rows
+
+
+@st.cache_data(show_spinner=False)
+def load_dataset_overview() -> dict[str, int]:
+    raw_inspection = json.loads(
+        configured_path(PROJECT_ROOT, REPORTS_PATH + RAW_INSPECTION_REPORT_FILE).read_text(encoding="utf-8")
+    )
+    product_selection = json.loads(
+        configured_path(PROJECT_ROOT, REPORTS_PATH + PRODUCT_SELECTION_REPORT_FILE).read_text(encoding="utf-8")
+    )
+    train_rows = _parquet_row_count(configured_path(PROJECT_ROOT, FEATURE_TRAIN_DATA_PATH))
+    test_rows = _parquet_row_count(configured_path(PROJECT_ROOT, FEATURE_TEST_DATA_PATH))
+    daily_rows = _parquet_row_count(configured_path(PROJECT_ROOT, DAILY_AGG_DATA_PATH))
+    clean_rows = _parquet_row_count(configured_path(PROJECT_ROOT, CLEAN_DATA_PATH))
+    return {
+        "raw_records": raw_inspection["dataset_shape"]["rows"],
+        "clean_records": clean_rows,
+        "products_analyzed": product_selection["run_summary"]["products_analyzed"],
+        "products_selected": product_selection["run_summary"]["selected_products"],
+        "daily_observations": daily_rows,
+        "train_observations": train_rows,
+        "test_observations": test_rows,
+        "modelled_observations": train_rows + test_rows,
+    }
+
+
+def _render_dataset_overview(overview: dict[str, int]) -> None:
+    st.subheader(DASHBOARD_SECTION_TITLES["dataset_overview"])
+    st.caption("Online Retail II dataset — United Kingdom transactions, 2010–2011.")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Raw Transactions", f"{overview['raw_records']:,}")
+        st.metric("Cleaned Transactions", f"{overview['clean_records']:,}")
+    with col2:
+        st.metric("Products Analysed", f"{overview['products_analyzed']:,}")
+        st.metric("Products Selected", str(overview["products_selected"]))
+    with col3:
+        st.metric("Training Observations", f"{overview['train_observations']:,}")
+        st.metric("Test Observations", f"{overview['test_observations']:,}")
+    st.caption(
+        f"{overview['raw_records']:,} raw → {overview['clean_records']:,} cleaned transactions → "
+        f"{overview['daily_observations']:,} daily product observations → "
+        f"{overview['modelled_observations']:,} modelled "
+        f"({overview['train_observations']:,} train / {overview['test_observations']:,} test). "
+        f"{overview['products_selected']} products selected from {overview['products_analyzed']:,} "
+        f"based on revenue contribution, activity levels, and observable price variation."
+    )
+
+    st.divider()
+    st.markdown("**Experiment Configuration**")
+    cfg_col1, cfg_col2, cfg_col3 = st.columns(3)
+    train_pct = int(TRAIN_SPLIT_RATIO * 100)
+    with cfg_col1:
+        st.metric("Demand Model", "Linear Regression" if MODEL_TYPE == "LinearRegression" else MODEL_TYPE)
+        st.metric("Train / Test Split", f"{train_pct}% / {100 - train_pct}% (chronological)")
+        st.metric("Feature Count", str(len(MODEL_FEATURE_COLUMNS)))
+    with cfg_col2:
+        st.metric("Rule Adjustment", f"±{int(RULE_PRICE_INCREASE * 100)}% per day")
+        st.metric("ML Price Grid", f"±{int(PRICE_GRID_PERCENTAGE * 100)}%, {SIMULATION_GRID_POINTS} candidates")
+    with cfg_col3:
+        st.metric("Hybrid Smoothing (α)", str(HYBRID_SMOOTHING_ALPHA))
+        st.metric("Hybrid Daily Cap", f"±{int(MAX_DAILY_CHANGE * 100)}%")
+    st.caption(
+        "Features: lag-1 demand, lag-7 demand, 7-day rolling mean demand, average daily price, "
+        "7 day-of-week indicators, 12 month indicators (23 total)."
+    )
 
 
 @st.cache_data(show_spinner=False)
@@ -523,7 +609,15 @@ def main() -> None:
         _evaluation_input_paths(),
     )
 
+    try:
+        overview = load_dataset_overview()
+    except Exception as exc:
+        logger.warning("Dataset overview artifacts unavailable: %s", exc)
+        overview = None
+
     summary_df = _summary_frame(summary_payload)
+    if overview is not None:
+        _render_dataset_overview(overview)
     _render_kpi_summary(summary_df)
     _render_revenue_comparison(summary_df)
     _render_stability_comparison(summary_df)

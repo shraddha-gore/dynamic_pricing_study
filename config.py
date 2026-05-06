@@ -371,6 +371,7 @@ DASHBOARD_STABILITY_SUPPORTING_METRICS = (
     "change_frequency",
 )
 DASHBOARD_SECTION_TITLES = {
+    "dataset_overview": "Dataset and Experiment Overview",
     "summary": "Section 1 - Overall Strategy Performance Comparison",
     "revenue": "Section 2 - Revenue Performance Analysis",
     "stability": "Section 3 - Pricing Stability Analysis",
