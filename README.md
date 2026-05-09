@@ -1,6 +1,6 @@
 # Dynamic Pricing Study
 
-**MSc Computer Science Dissertation — University of Essex**
+**MSc Computer Science Dissertation — University of Essex Online**
 
 *A Comparative Study of Rule-Based, Machine Learning and Hybrid Dynamic Pricing Models for Stable and Customer-Centric Pricing in Retail SMEs*
 
@@ -22,7 +22,7 @@ The study is scoped to a single market (United Kingdom), five products, and one 
 
 | | |
 |---|---|
-| **Institution** | University of Essex |
+| **Institution** | University of Essex Online |
 | **Programme** | MSc Computer Science |
 | **Study type** | Offline comparative simulation |
 | **Dataset** | [Online Retail II](https://www.kaggle.com/datasets/kabilan45/online-retail-ii-dataset) (2010–2011 worksheet) |
