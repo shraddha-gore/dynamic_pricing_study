@@ -45,6 +45,7 @@ dynamic_pricing_study/
 ├── simulation/              # Shared simulation engine
 ├── evaluation/              # Metric computation and statistical tests
 ├── dashboard/               # Streamlit read-only results dashboard
+├── .streamlit/              # Streamlit configuration (theme, toolbar)
 ├── utils/                   # Logging, data contracts, artifact loading
 ├── data/
 │   ├── raw/                 # Immutable source CSV

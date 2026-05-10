@@ -142,7 +142,12 @@ def load_dataset_overview() -> dict[str, int]:
 
 def _render_dataset_overview(overview: dict[str, int]) -> None:
     st.subheader(DASHBOARD_SECTION_TITLES["dataset_overview"])
-    st.caption("Online Retail II dataset — United Kingdom transactions, 2010–2011.")
+
+    st.markdown("#### Dataset Overview")
+    st.caption(
+        "Online Retail II dataset — United Kingdom transactions, 2010–2011. "
+        "[View on Kaggle](https://www.kaggle.com/datasets/kabilan45/online-retail-ii-dataset)"
+    )
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Raw Transactions", f"{overview['raw_records']:,}")
@@ -162,8 +167,7 @@ def _render_dataset_overview(overview: dict[str, int]) -> None:
         f"based on revenue contribution, activity levels, and observable price variation."
     )
 
-    st.divider()
-    st.markdown("**Experiment Configuration**")
+    st.markdown("#### Experiment Configuration")
     cfg_col1, cfg_col2, cfg_col3 = st.columns(3)
     train_pct = int(TRAIN_SPLIT_RATIO * 100)
     with cfg_col1:
@@ -229,27 +233,9 @@ def _render_primary_findings(summary_df: pd.DataFrame) -> None:
     stability_ranking = _metric_rankings(summary_df, "mean_absolute_change", ascending=True)
 
     st.markdown(
-        (
-            f"Primary result: **{revenue_ranking[0].upper()}** delivers the highest total revenue, while "
-            f"**{stability_ranking[0].upper()}** delivers the lowest mean absolute change under the shared simulation setting."
-        )
-    )
-    st.markdown(
-        (
-            f"Research answer: **{revenue_ranking[0].upper()}** maximises revenue, while "
-            f"**{stability_ranking[0].upper()}** provides the most stable pricing, demonstrating a clear "
-            "trade-off between performance and stability."
-        )
-    )
-    st.caption(
-        (
-            f"This frames the core trade-off directly: revenue ranking is "
-            f"{' > '.join(strategy.upper() for strategy in revenue_ranking)}, while stability ranking is "
-            f"{' < '.join(strategy.upper() for strategy in stability_ranking)}."
-        )
-    )
-    st.markdown(
-        "Key takeaway: This demonstrates a trade-off: optimisation improves revenue, while constraints improve stability."
+        f"**{revenue_ranking[0].upper()}** achieves the highest total revenue, while "
+        f"**{stability_ranking[0].upper()}** delivers the most stable pricing — demonstrating a clear "
+        "trade-off between revenue optimisation and price stability."
     )
 
 
@@ -266,10 +252,6 @@ def _strategy_ranking_summary_frame(summary_df: pd.DataFrame) -> pd.DataFrame:
 
 def _render_kpi_summary(summary_df: pd.DataFrame) -> None:
     st.subheader(DASHBOARD_SECTION_TITLES["summary"])
-    st.caption(
-        "Primary metrics answer the research question directly. Supporting metrics remain available for interpretation only."
-    )
-    st.caption("Highlighted bars and cells mark the best-performing strategy for each metric.")
     _render_primary_findings(summary_df)
     ranking_summary_df = _strategy_ranking_summary_frame(summary_df)
     with st.container(border=True):
@@ -334,6 +316,8 @@ def _bar_chart(
             ],
         )
         .properties(height=320, title=title)
+        .configure_axis(labelFontSize=13, titleFontSize=13)
+        .configure_title(fontSize=14)
     )
 
 
@@ -376,8 +360,9 @@ def _styled_metric_table(dataframe: pd.DataFrame, metric_names: list[str] | tupl
 
 def _styled_statistical_results_table(dataframe: pd.DataFrame):
     styles = pd.DataFrame("", index=dataframe.index, columns=dataframe.columns)
-    styles.loc[dataframe["Conclusion"] == "Significant", "Conclusion"] = DASHBOARD_SIGNIFICANT_CELL_STYLE
-    styles.loc[dataframe["Conclusion"] == "Not significant", "Conclusion"] = DASHBOARD_NONSIGNIFICANT_CELL_STYLE
+    significant_mask = dataframe["Conclusion"] == "Significant"
+    styles.loc[significant_mask, :] = DASHBOARD_SIGNIFICANT_CELL_STYLE
+    styles.loc[~significant_mask, "Conclusion"] = DASHBOARD_NONSIGNIFICANT_CELL_STYLE
     return dataframe.style.apply(lambda _: styles, axis=None)
 
 
@@ -386,10 +371,7 @@ def _render_revenue_comparison(summary_df: pd.DataFrame) -> None:
     revenue_ranking = _metric_rankings(summary_df, "total_revenue", ascending=False)
     mean_daily_revenue_leader = _strategy_for_metric(summary_df, "mean_daily_revenue", ascending=False)
     st.markdown(
-        f"Interpretation: **{revenue_ranking[0].upper()}** achieves the highest total revenue under the shared simulated demand conditions."
-    )
-    st.caption(
-        f"Mean daily revenue is shown as a secondary measure to support interpretation rather than drive the main conclusion."
+        f"**{revenue_ranking[0].upper()}** achieves the highest total revenue under the shared simulated demand conditions."
     )
     st.altair_chart(
         _bar_chart(
@@ -421,15 +403,12 @@ def _render_stability_comparison(summary_df: pd.DataFrame) -> None:
     supporting_alignment = all(strategy_name == stability_leader for strategy_name in supporting_metric_leaders.values())
     if supporting_alignment:
         st.markdown(
-            f"Interpretation: **{stability_leader.upper()}** demonstrates the lowest price volatility across the primary and supporting stability measures."
+            f"**{stability_leader.upper()}** demonstrates the lowest price volatility across all stability measures."
         )
     else:
         st.markdown(
-            f"Interpretation: **{stability_leader.upper()}** delivers the lowest mean absolute change, with supporting stability metrics used to explain the broader behaviour."
+            f"**{stability_leader.upper()}** delivers the lowest mean absolute change, with supporting stability metrics providing broader context."
         )
-    st.caption(
-        "Mean absolute change is the primary stability metric. The other three measures support interpretation rather than serve as headline results."
-    )
 
     st.altair_chart(
         _bar_chart(
@@ -462,18 +441,14 @@ def _product_metric_long_frame(product_metrics_df: pd.DataFrame, stock_code: str
 
 def _render_product_level_comparison(product_metrics_df: pd.DataFrame) -> None:
     st.subheader(DASHBOARD_SECTION_TITLES["product_comparison"])
-    st.caption("Supporting evidence for discussion and appendix material rather than the primary conclusion.")
     stock_codes = sorted(product_metrics_df[COL_STOCK_CODE].unique().tolist())
     default_stock_code = sorted(stock_codes)[0]
     selected_stock_code = st.selectbox(
-        "Select stock_code",
+        "Select Product",
         options=stock_codes,
         index=stock_codes.index(default_stock_code),
     )
 
-    st.caption(
-        "Each metric is shown in its own full-width chart so nothing gets compressed on smaller screens."
-    )
     selected_table = _product_metric_long_frame(product_metrics_df, selected_stock_code)
     for metric_name in DASHBOARD_PRODUCT_COMPARISON_METRICS:
         st.altair_chart(
@@ -524,14 +499,13 @@ def _statistical_results_frame(
 
 def _render_statistical_tests(statistical_payload: dict[str, dict[str, dict[str, dict[str, float]]]]) -> None:
     st.subheader(DASHBOARD_SECTION_TITLES["statistical_tests"])
-    st.caption("Results are interpreted at alpha = 0.05 using both paired t-tests and Wilcoxon signed-rank tests.")
-    st.caption("Significance outcomes are highlighted to separate robust findings from weaker evidence.")
+    st.caption("Results are interpreted at α = 0.05 using paired t-tests and Wilcoxon signed-rank tests.")
     results_df = _statistical_results_frame(statistical_payload)
     significant_df = results_df.loc[results_df["Significant"]].reset_index(drop=True)
     mixed_df = results_df.loc[~results_df["Significant"]].reset_index(drop=True)
 
     if not significant_df.empty and mixed_df.empty:
-        st.markdown("Interpretation: all reported pairwise results are statistically significant at alpha = 0.05.")
+        st.markdown("All reported pairwise results are statistically significant at α = 0.05.")
     elif not significant_df.empty:
         stability_all_significant = bool(
             results_df.loc[results_df["Metric"] == "abs_price_change", "Significant"].all()
@@ -547,7 +521,7 @@ def _render_statistical_tests(statistical_payload: dict[str, dict[str, dict[str,
                 "revenue differences between hybrid and rule are weaker and not consistently significant across tests"
             )
         if interpretation_parts:
-            st.markdown(f"Interpretation: {'; '.join(interpretation_parts)}.")
+            st.markdown(f"{'; '.join(interpretation_parts).capitalize()}.")
 
     if not significant_df.empty:
         st.markdown("**Significant results**")
@@ -588,12 +562,16 @@ def _render_statistical_tests(statistical_payload: dict[str, dict[str, dict[str,
 def main() -> None:
     configure_logging(targets=command_logging_targets(DASHBOARD_COMMAND))
     st.set_page_config(page_title="Dynamic Pricing Study Dashboard", layout="wide")
-    st.title("Dynamic Pricing Strategy Dashboard")
-    st.caption("Read-only Dashboard backed exclusively by Evaluation artifacts.")
-    st.caption(
-        "Sections 1-4 present the core findings used to answer the research question. Section 5 provides supporting evidence."
+    st.markdown(
+        """<style>
+        p, li { font-size: 1.2rem !important; }
+        [data-testid="stCaptionContainer"] p { font-size: 1.05rem !important; }
+        [data-testid="stMetricLabel"] { font-size: 1rem !important; }
+        [data-testid="stMetricValue"] { font-size: 1.6rem !important; }
+        </style>""",
+        unsafe_allow_html=True,
     )
-
+    st.title("Dynamic Pricing Strategy Dashboard")
     try:
         product_metrics_df, summary_payload, statistical_payload = load_dashboard_inputs()
     except Exception as exc:
@@ -618,10 +596,15 @@ def main() -> None:
     summary_df = _summary_frame(summary_payload)
     if overview is not None:
         _render_dataset_overview(overview)
+        st.divider()
     _render_kpi_summary(summary_df)
+    st.divider()
     _render_revenue_comparison(summary_df)
+    st.divider()
     _render_stability_comparison(summary_df)
+    st.divider()
     _render_statistical_tests(statistical_payload)
+    st.divider()
     _render_product_level_comparison(product_metrics_df)
 
 

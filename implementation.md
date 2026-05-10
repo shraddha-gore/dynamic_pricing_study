@@ -1833,10 +1833,7 @@ It also computes simple strategy rankings from the already-loaded summary payloa
 
 The section renders:
 
-- a short "how to read this dashboard" note near the page title explaining that Sections 1-4 are core findings and the later section is supporting evidence
-- headline interpretation text
-- an explicit research-answer sentence
-- a one-line key takeaway about the trade-off between revenue optimisation and pricing stability
+- a single consolidated finding sentence naming the revenue leader and stability leader and stating the trade-off between revenue optimisation and price stability
 - a bordered strategy-ranking summary box with:
   - `Revenue -> ML`
   - `Stability -> HYBRID`
@@ -1866,11 +1863,9 @@ The stability layout gives `mean_absolute_change` full-width emphasis first, fol
 
 The dashboard provides:
 
-- a `stock_code` select box
+- a "Select Product" select box (labelled by product stock code)
 - one full-width bar chart per product comparison metric
 - a tabular per-strategy comparison for the selected stock code
-
-This section is explicitly labelled as supporting evidence for discussion and appendix use rather than a primary result section.
 
 ### 19.11 Statistical Tests Section
 
@@ -1894,7 +1889,7 @@ The rendered dashboard additionally:
 - states that results are interpreted at `alpha = 0.05`
 - lists significant findings explicitly above the full table
 - adds a `Conclusion` column with `Significant` or `Not significant`
-- visually highlights the `Conclusion` outcomes so significant and non-significant results are immediately distinguishable
+- highlights the entire row in green for significant results; applies the orange tint only to the `Conclusion` cell for non-significant results
 
 ## 20. Exact Frozen Schemas and Contracts
 
