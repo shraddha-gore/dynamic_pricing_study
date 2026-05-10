@@ -116,6 +116,7 @@ def _build_strategy_context(
 def _resolve_chosen_candidate(candidates_df: pd.DataFrame, chosen_price: float) -> tuple[pd.Series, float]:
     chosen_rows = candidates_df[candidates_df["candidate_price"] == chosen_price]
     if chosen_rows.empty:
+        # Float equality can miss due to rounding; fall back to the nearest candidate.
         nearest_idx = (candidates_df["candidate_price"] - chosen_price).abs().idxmin()
         chosen_row = candidates_df.loc[nearest_idx]
         return chosen_row, float(chosen_row["candidate_price"])
@@ -160,6 +161,7 @@ def _build_simulation_outputs(test_df: pd.DataFrame, model, strategy_name: str) 
 
     all_candidates: list[pd.DataFrame] = []
     all_results: list[dict[str, object]] = []
+    # Tracks the chosen price from the previous day per product; initialised to base_price on first observation.
     previous_price_by_product: dict[str, float] = {}
 
     for _, row in test_df.iterrows():

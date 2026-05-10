@@ -60,7 +60,7 @@ def run_aggregate_daily() -> None:
         .dropna()
         .tolist()
     )
-    selected_codes = list(dict.fromkeys(selected_codes))
+    selected_codes = list(dict.fromkeys(selected_codes))  # deduplicate while preserving order
 
     df = pd.read_parquet(input_path)
     ensure_required_columns(

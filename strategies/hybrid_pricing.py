@@ -1,3 +1,13 @@
+"""
+Hybrid pricing strategy.
+
+Combines ML revenue optimisation with stability constraints:
+  1. Select the ML-optimal price.
+  2. Clamp it to ±MAX_DAILY_CHANGE of the previous day's price.
+  3. Smooth toward the previous price: smoothed = α * clamped + (1-α) * previous.
+  4. Return the candidate price nearest to the smoothed target.
+"""
+
 import pandas as pd
 
 from config import HYBRID_SMOOTHING_ALPHA, MAX_DAILY_CHANGE

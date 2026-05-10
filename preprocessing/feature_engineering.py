@@ -41,6 +41,7 @@ def _add_demand_lag_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df["lag1_units"] = grouped_units.shift(1)
     df["lag7_units"] = grouped_units.shift(7)
+    # shift(1) before rolling excludes the current day from the window, preventing target leakage.
     df["rolling7_mean_units"] = (
         grouped_units.shift(1).rolling(window=7, min_periods=7).mean().reset_index(level=0, drop=True)
     )
@@ -54,6 +55,7 @@ def _add_seasonality_features(df: pd.DataFrame) -> pd.DataFrame:
     weekday_dummies = pd.get_dummies(df["weekday"], prefix="weekday", dtype="int8")
     month_dummies = pd.get_dummies(df["month"], prefix="month", dtype="int8")
 
+    # Fill missing columns so the schema is complete even when a weekday or month never appears in this split.
     for col in FEATURE_WEEKDAY_COLUMNS:
         if col not in weekday_dummies.columns:
             weekday_dummies[col] = 0
@@ -69,6 +71,7 @@ def _add_seasonality_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _split_train_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split each product's time series chronologically at TRAIN_SPLIT_RATIO."""
     train_parts: list[pd.DataFrame] = []
     test_parts: list[pd.DataFrame] = []
 

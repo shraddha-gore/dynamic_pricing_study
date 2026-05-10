@@ -17,6 +17,8 @@ from config import (
 
 
 class LoggerPrefixFilter(logging.Filter):
+    """Routes log records to a handler only when the logger name matches one of the given prefixes."""
+
     def __init__(self, prefixes: tuple[str, ...]) -> None:
         super().__init__()
         self.prefixes = prefixes
@@ -63,6 +65,12 @@ def _target_handler(logs_dir: Path, log_file_name: str, logger_prefixes: tuple[s
 
 
 def configure_logging(targets: list[str] | tuple[str, ...] | None = None) -> None:
+    """Configure the root logger with a master handler and per-stage file handlers.
+
+    Args:
+        targets: Stage names (e.g. ``"build"``, ``"simulate"``) whose dedicated log file
+                 should be activated. All stages always write to the master log.
+    """
     logs_dir = _logs_dir()
     logs_dir.mkdir(parents=True, exist_ok=True)
 

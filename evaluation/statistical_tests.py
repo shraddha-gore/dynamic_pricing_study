@@ -54,6 +54,7 @@ def _run_paired_tests(left_values: pd.Series, right_values: pd.Series) -> dict[s
         raise ValueError("Evaluation statistical testing failed: no paired observations available.")
 
     differences = left_array - right_array
+    # Both tests require non-zero variance; return a neutral result when strategies produce identical values.
     if np.allclose(differences, 0.0):
         neutral_result = _serialise_test_result(0.0, 1.0, sample_size)
         return {

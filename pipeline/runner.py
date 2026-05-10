@@ -1,3 +1,5 @@
+"""Dispatches each pipeline stage in sequence and wires simulation strategies to their runners."""
+
 from collections.abc import Callable
 
 from config import (
@@ -43,6 +45,7 @@ def run_all_simulations() -> None:
 
 
 def _unit_registry() -> tuple[tuple[str, Callable[[], None]], ...]:
+    # Ordered tuple rather than a dict so unit execution order is explicit and unambiguous.
     return (
         (INSPECT_UNIT, run_raw_inspection),
         (CLEAN_UNIT, run_clean_data),

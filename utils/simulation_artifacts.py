@@ -22,6 +22,7 @@ def ensure_required_simulation_outputs() -> None:
 
 
 def validate_strategy_results(df: pd.DataFrame, strategy_name: str) -> pd.DataFrame:
+    """Validate schema and strategy-name consistency, then return the frame sorted by pairing keys."""
     validate_simulation_results(df)
 
     if not (df["strategy_name"] == strategy_name).all():

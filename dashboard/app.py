@@ -113,6 +113,7 @@ def _dashboard_product_metrics_view(metrics_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _parquet_row_count(path: Path) -> int:
+    # Reads only the Parquet footer metadata — avoids loading column data into memory.
     return pq.read_metadata(path).num_rows
 
 

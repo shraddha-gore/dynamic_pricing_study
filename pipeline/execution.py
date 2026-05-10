@@ -1,3 +1,5 @@
+"""Thin wrappers over config mappings that expose execution group and logging target metadata."""
+
 from config import COMMAND_LOGGING_TARGETS, GROUP_UNITS
 
 

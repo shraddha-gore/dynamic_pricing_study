@@ -54,6 +54,7 @@ def _validate_exact_keys(payload: Mapping[str, object], expected_keys: list[str]
 
 
 def _validate_scalar_type(value: object, expected_type: type, context: str) -> None:
+    # Uses strict identity (type() is) rather than isinstance() to reject bool/int subclasses of float.
     if expected_type is float and type(value) is not float:
         raise ValueError(f"{context} validation failed: expected float, got {type(value).__name__}.")
     if expected_type is int and type(value) is not int:

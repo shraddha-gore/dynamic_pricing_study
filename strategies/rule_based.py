@@ -1,9 +1,18 @@
+"""
+Rule-based pricing strategy.
+
+Compares predicted demand at the base price to the 7-day rolling mean.
+If demand exceeds the mean, raises price by RULE_PRICE_INCREASE; if below, lowers by
+RULE_PRICE_DECREASE; otherwise holds. Returns the candidate price closest to the target.
+"""
+
 import pandas as pd
 
 from config import RULE_PRICE_DECREASE, RULE_PRICE_INCREASE
 
 
 def _select_candidate_price(candidate_table: pd.DataFrame, target_price: float, base_price: float) -> float:
+    # Tiebreak by proximity to base price, then by price value, to produce deterministic output.
     ranked = candidate_table.assign(
         distance_to_target=(candidate_table["candidate_price"] - target_price).abs(),
         distance_to_base=(candidate_table["candidate_price"] - base_price).abs(),

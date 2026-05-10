@@ -1,3 +1,10 @@
+"""
+ML pricing strategy.
+
+Greedy revenue maximiser: selects the candidate price with the highest predicted revenue.
+Tiebreaks by proximity to the base price, then by price value, to produce deterministic output.
+"""
+
 import pandas as pd
 
 
