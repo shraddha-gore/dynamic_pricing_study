@@ -177,7 +177,7 @@ def _render_dataset_overview(overview: dict[str, int]) -> None:
         st.metric("Feature Count", str(len(MODEL_FEATURE_COLUMNS)))
     with cfg_col2:
         st.metric("Rule Adjustment", f"±{int(RULE_PRICE_INCREASE * 100)}% per day")
-        st.metric("ML Price Grid", f"±{int(PRICE_GRID_PERCENTAGE * 100)}%, {SIMULATION_GRID_POINTS} candidates")
+        st.metric("Candidate Price Grid", f"±{int(PRICE_GRID_PERCENTAGE * 100)}%, {SIMULATION_GRID_POINTS} candidates")
     with cfg_col3:
         st.metric("Hybrid Smoothing (α)", str(HYBRID_SMOOTHING_ALPHA))
         st.metric("Hybrid Daily Cap", f"±{int(MAX_DAILY_CHANGE * 100)}%")
